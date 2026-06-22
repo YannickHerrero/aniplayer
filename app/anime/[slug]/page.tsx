@@ -1,13 +1,14 @@
 "use client"
 
 import { useParams } from "next/navigation"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
 
 import { AnilistTrackingPanel } from "@/components/app/anilist-tracking-panel"
 import { DetailHero } from "@/components/app/detail-hero"
 import { EpisodeList } from "@/components/app/episode-list"
 import { MatchPicker } from "@/components/app/match-picker"
 import { Button } from "@/components/ui/button"
+import { Toast, type ToastTone } from "@/components/ui/toast"
 import { useAnilistAuth } from "@/hooks/use-anilist-auth"
 import { useAnilistMedia } from "@/hooks/use-anilist-media"
 import { useLibraryFolder } from "@/hooks/use-library-folder"
@@ -36,6 +37,11 @@ export default function AnimeDetailPage() {
     mapping?.anilistId ?? null,
     token
   )
+
+  const [toast, setToast] = useState<{
+    message: string
+    tone: ToastTone
+  } | null>(null)
 
   // Lazily auto-match this folder to AniList the first time we see it unmapped.
   const attempted = useRef(false)
@@ -86,10 +92,13 @@ export default function AnimeDetailPage() {
       })
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string }
-        console.error("Playback failed:", data.error ?? res.status)
+        setToast({
+          message: `Couldn't play: ${data.error ?? res.status}`,
+          tone: "error",
+        })
       }
-    } catch (err) {
-      console.error("Playback failed:", err)
+    } catch {
+      setToast({ message: "Couldn't reach VLC.", tone: "error" })
     }
   }
 
@@ -109,8 +118,11 @@ export default function AnimeDetailPage() {
       try {
         await saveAnilistProgress(mapping.anilistId, progress, token)
         refreshMedia()
-      } catch (err) {
-        console.error("Failed to sync progress to AniList:", err)
+      } catch {
+        setToast({
+          message: "Couldn't sync progress to AniList.",
+          tone: "error",
+        })
       }
     }
   }
@@ -173,6 +185,12 @@ export default function AnimeDetailPage() {
           }
         />
       </div>
+
+      <Toast
+        message={toast?.message ?? null}
+        tone={toast?.tone}
+        onDismiss={() => setToast(null)}
+      />
     </main>
   )
 }

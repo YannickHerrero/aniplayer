@@ -11,8 +11,14 @@ import { Button } from "@/components/ui/button"
 import { useAnilistMedia } from "@/hooks/use-anilist-media"
 import { useLibraryFolder } from "@/hooks/use-library-folder"
 import { useMappings } from "@/hooks/use-mappings"
+import { useWatched } from "@/hooks/use-watched"
+import { saveAnilistProgress } from "@/lib/anilist"
 import { autoMatchAnime } from "@/lib/auto-match"
-import { effectiveWatchedSet, totalEpisodes } from "@/lib/watched"
+import {
+  effectiveWatchedSet,
+  maxWatched,
+  totalEpisodes,
+} from "@/lib/watched"
 
 export default function AnimeDetailPage() {
   const params = useParams<{ slug: string }>()
@@ -24,9 +30,13 @@ export default function AnimeDetailPage() {
 
   const { folder, loading: folderLoading, error } = useLibraryFolder(slug)
   const { mappings, saveMapping } = useMappings()
+  const { watchedMap, pending, toggle } = useWatched()
 
   const mapping = mappings[slug] ?? null
-  const { media } = useAnilistMedia(mapping?.anilistId ?? null, token)
+  const { media, refresh: refreshMedia } = useAnilistMedia(
+    mapping?.anilistId ?? null,
+    token
+  )
 
   // Lazily auto-match this folder to AniList the first time we see it unmapped.
   const attempted = useRef(false)
@@ -85,10 +95,26 @@ export default function AnimeDetailPage() {
   }
 
   const localCount = folder.episodeCount
+  const localWatched = watchedMap[slug] ?? []
   const watchedSet = effectiveWatchedSet(
-    [],
+    localWatched,
     connected ? (media?.mediaListEntry?.progress ?? null) : null
   )
+
+  const handleToggleWatched = async (episode: number) => {
+    const nowWatched = !watchedSet.has(episode)
+    const updated = await toggle(slug, episode, nowWatched)
+    // Push progress to AniList (highest watched episode) when connected.
+    if (token && mapping?.anilistId) {
+      const progress = maxWatched(updated)
+      try {
+        await saveAnilistProgress(mapping.anilistId, progress, token)
+        refreshMedia()
+      } catch (err) {
+        console.error("Failed to sync progress to AniList:", err)
+      }
+    }
+  }
   const total = totalEpisodes(
     media?.episodes ?? null,
     media?.nextAiringEpisode?.episode ?? null,
@@ -138,9 +164,14 @@ export default function AnimeDetailPage() {
           folder={folder}
           watchedSet={watchedSet}
           onPlay={playEpisode}
-          onToggleWatched={() => {
-            // Wired to local + AniList state in phase 8.
-          }}
+          onToggleWatched={handleToggleWatched}
+          pendingEpisodes={
+            new Set(
+              [...pending]
+                .filter((k) => k.startsWith(`${slug}:`))
+                .map((k) => Number(k.split(":")[1]))
+            )
+          }
         />
       </div>
     </main>

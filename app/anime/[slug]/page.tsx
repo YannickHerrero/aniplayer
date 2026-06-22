@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useParams } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 
@@ -77,7 +78,7 @@ export default function AnimeDetailPage() {
       <div className="flex h-screen flex-col items-center justify-center gap-3">
         <p className="text-sm text-text-secondary">{error ?? "Not found"}</p>
         <Button variant="secondary" asChild>
-          <a href="/">Back to library</a>
+          <Link href="/">Back to library</Link>
         </Button>
       </div>
     )

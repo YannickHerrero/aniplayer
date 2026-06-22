@@ -5,6 +5,14 @@ import nextTs from "eslint-config-next/typescript"
 const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
+  {
+    rules: {
+      // We use idiomatic fetch-on-mount effects (set loading → await → set
+      // data) and fragment parsing on mount; this rule flags the synchronous
+      // setState that starts those, which is intentional here.
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
   // Override default ignores of eslint-config-next.
   globalIgnores([
     ".next/**",

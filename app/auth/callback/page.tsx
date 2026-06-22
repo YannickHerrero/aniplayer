@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useEffect, useState } from "react"
 
@@ -24,9 +25,9 @@ export default function AuthCallbackPage() {
       {error ? (
         <>
           <p className="text-sm text-red-400">{error}</p>
-          <a href="/" className="text-sm text-accent-light hover:underline">
+          <Link href="/" className="text-sm text-accent-light hover:underline">
             Back to library
-          </a>
+          </Link>
         </>
       ) : (
         <p className="text-sm text-text-secondary">Connecting to AniList…</p>

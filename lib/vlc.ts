@@ -1,0 +1,83 @@
+import { spawn } from "node:child_process"
+import { access, realpath, stat } from "node:fs/promises"
+import path from "node:path"
+
+import { isVideoFile } from "@/lib/episode-parser"
+import {
+  getLibraryRoot,
+  isSafeSegment,
+  slugToFolderName,
+} from "@/lib/library-paths"
+
+const VLC_BINARY =
+  process.env.VLC_PATH || "/Applications/VLC.app/Contents/MacOS/VLC"
+
+export class PlaybackError extends Error {
+  constructor(
+    message: string,
+    readonly status: number = 400
+  ) {
+    super(message)
+  }
+}
+
+/**
+ * Resolve and validate an episode path, then launch it in VLC (detached).
+ * Throws PlaybackError (with an HTTP status) on any validation failure.
+ */
+export async function playInVlc(slug: string, fileName: string): Promise<void> {
+  const folderName = slugToFolderName(slug)
+
+  // No traversal / separators in either segment.
+  if (!isSafeSegment(folderName) || !isSafeSegment(fileName)) {
+    throw new PlaybackError("Invalid path segment")
+  }
+  if (!isVideoFile(fileName)) {
+    throw new PlaybackError("Not a video file")
+  }
+
+  const root = getLibraryRoot()
+  const target = path.join(root, folderName, fileName)
+
+  // Containment: the real target must live inside the real library root.
+  let realRoot: string
+  let realTarget: string
+  try {
+    realRoot = await realpath(root)
+    realTarget = await realpath(target)
+  } catch {
+    throw new PlaybackError("File not found", 404)
+  }
+
+  if (
+    realTarget !== realRoot &&
+    !realTarget.startsWith(realRoot + path.sep)
+  ) {
+    throw new PlaybackError("Path escapes library root", 403)
+  }
+
+  const info = await stat(realTarget)
+  if (!info.isFile()) {
+    throw new PlaybackError("Not a file")
+  }
+
+  await launch(realTarget)
+}
+
+async function launch(absolutePath: string): Promise<void> {
+  // Prefer the VLC binary directly; fall back to `open -a VLC` on macOS.
+  let command = VLC_BINARY
+  let args = [absolutePath]
+  try {
+    await access(VLC_BINARY)
+  } catch {
+    command = "open"
+    args = ["-a", "VLC", absolutePath]
+  }
+
+  const child = spawn(command, args, {
+    detached: true,
+    stdio: "ignore",
+  })
+  child.unref()
+}

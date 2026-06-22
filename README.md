@@ -57,6 +57,7 @@ Episode numbers are parsed from messy fansub filenames best-effort
    | `ANIME_LIBRARY_PATH` | Library root (default `~/Downloads/anime`). |
    | `ANIPLAYER_DATA_DIR` | Where mappings/watched JSON live (default `./.data`). |
    | `NEXT_PUBLIC_ANILIST_CLIENT_ID` | Your AniList API client id (see below). |
+   | `ANILIST_CLIENT_SECRET` | Your AniList client secret (server-side only). |
    | `NEXT_PUBLIC_ANILIST_REDIRECT_URI` | Must match the AniList client exactly. |
    | `VLC_PATH` | Optional override for the VLC binary path. |
 
@@ -71,7 +72,9 @@ Episode numbers are parsed from messy fansub filenames best-effort
 ## Connecting AniList (optional but recommended)
 
 Reading your personal progress/score and pushing "mark complete" both require an
-authenticated AniList account via OAuth.
+authenticated AniList account via OAuth. AniList uses the **Authorization Code**
+grant, so you need both the client **ID** and **secret** (the secret stays
+server-side and is never sent to the browser).
 
 1. Go to **AniList → Settings → Developer →
    [Create New Client](https://anilist.co/settings/developer)**.
@@ -81,8 +84,10 @@ authenticated AniList account via OAuth.
    http://localhost:39847/auth/callback
    ```
 
-3. Copy the client **ID** into `NEXT_PUBLIC_ANILIST_CLIENT_ID` in `.env.local`
-   (and keep `NEXT_PUBLIC_ANILIST_REDIRECT_URI` matching the redirect URL).
+3. Copy the client **ID** and **secret** into `.env.local`
+   (`NEXT_PUBLIC_ANILIST_CLIENT_ID` and `ANILIST_CLIENT_SECRET`), keeping
+   `NEXT_PUBLIC_ANILIST_REDIRECT_URI` matching the redirect URL above. The secret
+   is shown on the client's page in AniList's developer settings.
 4. Restart the dev server, then click **Connect AniList** in the sidebar.
 
 Without a connected account you can still browse, play, and mark episodes

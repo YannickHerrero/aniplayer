@@ -135,6 +135,16 @@ const VIEWER_QUERY = `
   }
 `
 
+const SAVE_PROGRESS_MUTATION = `
+  mutation ($mediaId: Int, $progress: Int) {
+    SaveMediaListEntry(mediaId: $mediaId, progress: $progress) {
+      id
+      progress
+      status
+    }
+  }
+`
+
 const PREFERRED_TV_FORMATS = new Set(["TV", "TV_SHORT", "ONA"])
 
 /** Low-level GraphQL call through the local proxy (forwards token if present). */
@@ -214,6 +224,39 @@ export async function fetchAnilistViewer(
     token,
   })
   return data.Viewer ?? null
+}
+
+/**
+ * Push watched progress to AniList (SaveMediaListEntry). Requires a token.
+ * Returns the updated list entry.
+ */
+export async function saveAnilistProgress(
+  mediaId: number,
+  progress: number,
+  token: string,
+  signal?: AbortSignal
+): Promise<AnilistMediaListEntry | null> {
+  const data = await requestAnilist<{
+    SaveMediaListEntry?: {
+      id?: number | null
+      progress?: number | null
+      status?: string | null
+    } | null
+  }>({
+    query: SAVE_PROGRESS_MUTATION,
+    variables: { mediaId, progress },
+    token,
+    signal,
+  })
+
+  const entry = data.SaveMediaListEntry
+  if (!entry || typeof entry.id !== "number") return null
+  return {
+    id: entry.id,
+    progress: typeof entry.progress === "number" ? entry.progress : progress,
+    score: null,
+    status: entry.status ?? null,
+  }
 }
 
 export function pickBestAnilistMatch(

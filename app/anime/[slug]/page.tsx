@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react"
 
 import { AnilistTrackingPanel } from "@/components/app/anilist-tracking-panel"
 import { DetailHero } from "@/components/app/detail-hero"
+import { EpisodeList } from "@/components/app/episode-list"
 import { MatchPicker } from "@/components/app/match-picker"
 import { Button } from "@/components/ui/button"
 import { useAnilistMedia } from "@/hooks/use-anilist-media"
@@ -67,6 +68,22 @@ export default function AnimeDetailPage() {
     )
   }
 
+  const playEpisode = async (fileName: string) => {
+    try {
+      const res = await fetch("/api/play", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ slug, fileName }),
+      })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { error?: string }
+        console.error("Playback failed:", data.error ?? res.status)
+      }
+    } catch (err) {
+      console.error("Playback failed:", err)
+    }
+  }
+
   const localCount = folder.episodeCount
   const watchedSet = effectiveWatchedSet(
     [],
@@ -78,12 +95,26 @@ export default function AnimeDetailPage() {
     localCount
   )
 
+  // Next unwatched episode on disk → drives the Resume button.
+  const resumeEpisode =
+    folder.episodes.find(
+      (ep) => ep.episode != null && !watchedSet.has(ep.episode)
+    ) ?? folder.episodes[0]
+
   return (
     <main className="min-h-screen">
       <DetailHero
         slug={slug}
         folderName={folder.folderName}
         media={media}
+        onResume={
+          resumeEpisode ? () => playEpisode(resumeEpisode.fileName) : undefined
+        }
+        resumeLabel={
+          resumeEpisode?.episode != null
+            ? `Resume · E${resumeEpisode.episode}`
+            : "Play"
+        }
         matchControl={
           <MatchPicker
             folderName={folder.folderName}
@@ -103,10 +134,14 @@ export default function AnimeDetailPage() {
           connected={connected}
         />
 
-        {/* Episodes list — added in phase 7. */}
-        <p className="text-sm text-text-secondary">
-          {localCount} episode{localCount === 1 ? "" : "s"} on disk.
-        </p>
+        <EpisodeList
+          folder={folder}
+          watchedSet={watchedSet}
+          onPlay={playEpisode}
+          onToggleWatched={() => {
+            // Wired to local + AniList state in phase 8.
+          }}
+        />
       </div>
     </main>
   )

@@ -8,6 +8,7 @@ import { DetailHero } from "@/components/app/detail-hero"
 import { EpisodeList } from "@/components/app/episode-list"
 import { MatchPicker } from "@/components/app/match-picker"
 import { Button } from "@/components/ui/button"
+import { useAnilistAuth } from "@/hooks/use-anilist-auth"
 import { useAnilistMedia } from "@/hooks/use-anilist-media"
 import { useLibraryFolder } from "@/hooks/use-library-folder"
 import { useMappings } from "@/hooks/use-mappings"
@@ -24,9 +25,7 @@ export default function AnimeDetailPage() {
   const params = useParams<{ slug: string }>()
   const slug = params.slug
 
-  // TODO(phase 9): real AniList token from OAuth.
-  const token: string | null = null
-  const connected = Boolean(token)
+  const { token, connected } = useAnilistAuth()
 
   const { folder, loading: folderLoading, error } = useLibraryFolder(slug)
   const { mappings, saveMapping } = useMappings()

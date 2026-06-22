@@ -34,34 +34,34 @@ export function clearToken(): void {
   window.localStorage.removeItem(TOKEN_KEY)
 }
 
-/** Build the AniList implicit-grant authorize URL, or null if unconfigured. */
+/**
+ * Build the AniList authorization-code authorize URL, or null if unconfigured.
+ * AniList no longer supports implicit grant, so we use response_type=code and
+ * exchange the returned code for a token server-side (see /api/auth/anilist).
+ */
 export function buildAuthorizeUrl(): string | null {
   const clientId = process.env.NEXT_PUBLIC_ANILIST_CLIENT_ID
-  if (!clientId) return null
+  const redirectUri = process.env.NEXT_PUBLIC_ANILIST_REDIRECT_URI
+  if (!clientId || !redirectUri) return null
 
   const params = new URLSearchParams({
     client_id: clientId,
-    response_type: "token",
+    redirect_uri: redirectUri,
+    response_type: "code",
   })
-  const redirectUri = process.env.NEXT_PUBLIC_ANILIST_REDIRECT_URI
-  if (redirectUri) params.set("redirect_uri", redirectUri)
 
   return `${AUTHORIZE_URL}?${params.toString()}`
 }
 
-/** Parse the `#access_token=…&expires_in=…` fragment from the OAuth callback. */
-export function parseTokenFromHash(hash: string): StoredToken | null {
-  const cleaned = hash.startsWith("#") ? hash.slice(1) : hash
-  const params = new URLSearchParams(cleaned)
-  const accessToken = params.get("access_token")
-  if (!accessToken) return null
-
-  const expiresIn = Number(params.get("expires_in"))
-  // AniList implicit tokens last ~1 year; default to that if absent.
+/** Build a StoredToken from an access token + lifetime in seconds. */
+export function makeStoredToken(
+  accessToken: string,
+  expiresInSeconds: number | null | undefined
+): StoredToken {
+  // AniList access tokens are long-lived (~1 year); fall back to that.
   const ttlMs =
-    Number.isFinite(expiresIn) && expiresIn > 0
-      ? expiresIn * 1000
+    expiresInSeconds && expiresInSeconds > 0
+      ? expiresInSeconds * 1000
       : 365 * 24 * 60 * 60 * 1000
-
   return { accessToken, expiresAt: Date.now() + ttlMs }
 }

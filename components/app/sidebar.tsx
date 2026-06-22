@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Heart, Home, ListVideo, PlayCircle } from "lucide-react"
 
+import { AnilistConnectButton } from "@/components/app/anilist-connect-button"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS = [
@@ -79,8 +80,9 @@ export function Sidebar({
         </ul>
       </div>
 
-      {/* Library status */}
-      <div className="mt-auto p-4">
+      {/* AniList connect + library status */}
+      <div className="mt-auto flex flex-col gap-3 p-4">
+        <AnilistConnectButton />
         <div className="rounded-xl border border-[var(--border)] bg-panel p-3.5">
           <div className="flex items-center gap-2">
             <span className="pulse-dot size-1.5 rounded-full bg-green shadow-[0_0_7px_var(--green)]" />

@@ -1,0 +1,109 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/*
+ * Aniplayer design tokens — dark theme reproduced from the prototype.
+ * Palette: near-black backgrounds, purple accent, green/yellow status colors.
+ */
+:root {
+  --bg: #0b0b0f;
+  --sidebar: #0e0e13;
+  --card: #15151b;
+  --panel: #131319;
+
+  --text-primary: #f3f2f6;
+  --text-secondary: #9a96a4;
+  --text-tertiary: #8a8794;
+  --text-muted: #6a6770;
+  --text-faint: #5e5b67;
+
+  --accent: #6a5cf0;
+  --accent-light: #9b6cf0;
+  --green: #3ee08f;
+  --yellow: #ffd24a;
+  --anilist-blue: #02a9ff;
+
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.07);
+  --track: #26252d;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-sidebar: var(--sidebar);
+  --color-card: var(--card);
+  --color-panel: var(--panel);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+
+  --color-accent: var(--accent);
+  --color-accent-light: var(--accent-light);
+  --color-green: var(--green);
+  --color-yellow: var(--yellow);
+  --color-anilist: var(--anilist-blue);
+
+  --color-track: var(--track);
+
+  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-space-mono), ui-monospace, monospace;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* Scrollbar — matches prototype */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* Pulsing status dot (releasing / countdown) */
+@keyframes pulse-glow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.4;
+  }
+}
+.pulse-dot {
+  animation: pulse-glow 1.8s ease-in-out infinite;
+}

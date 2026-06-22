@@ -6,9 +6,11 @@ import { AnimeGrid } from "@/components/app/anime-grid"
 import { LibraryHeader } from "@/components/app/library-header"
 import { Sidebar } from "@/components/app/sidebar"
 import { useLibrary } from "@/hooks/use-library"
+import { useMappings } from "@/hooks/use-mappings"
 
 export default function LibraryPage() {
   const { folders, loading, error } = useLibrary()
+  const { mappings } = useMappings()
   const [query, setQuery] = useState("")
 
   const filtered = useMemo(() => {
@@ -49,7 +51,9 @@ export default function LibraryPage() {
             </p>
           )}
 
-          {filtered.length > 0 && <AnimeGrid folders={filtered} />}
+          {filtered.length > 0 && (
+            <AnimeGrid folders={filtered} mappings={mappings} />
+          )}
         </div>
       </main>
     </div>

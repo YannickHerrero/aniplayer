@@ -9,15 +9,28 @@ import {
 } from "@/components/app/continue-watching-row"
 import { LibraryHeader } from "@/components/app/library-header"
 import { Sidebar } from "@/components/app/sidebar"
+import { useAnilistAuth } from "@/hooks/use-anilist-auth"
+import { useAutoMatchLibrary } from "@/hooks/use-auto-match-library"
 import { useLibrary } from "@/hooks/use-library"
 import { useMappings } from "@/hooks/use-mappings"
 import { useWatched } from "@/hooks/use-watched"
 
 export default function LibraryPage() {
   const { folders, loading, error } = useLibrary()
-  const { mappings } = useMappings()
+  const { mappings, loading: mappingsLoading, saveMapping } = useMappings()
   const { watchedMap } = useWatched()
+  const { token } = useAnilistAuth()
   const [query, setQuery] = useState("")
+
+  // Match unmapped folders to AniList in the background so covers show up
+  // without having to open each detail page first.
+  useAutoMatchLibrary({
+    folders,
+    mappings,
+    saveMapping,
+    token,
+    ready: !loading && !mappingsLoading,
+  })
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()

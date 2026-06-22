@@ -3,14 +3,20 @@
 import { useMemo, useState } from "react"
 
 import { AnimeGrid } from "@/components/app/anime-grid"
+import {
+  type ContinueWatchingItem,
+  ContinueWatchingRow,
+} from "@/components/app/continue-watching-row"
 import { LibraryHeader } from "@/components/app/library-header"
 import { Sidebar } from "@/components/app/sidebar"
 import { useLibrary } from "@/hooks/use-library"
 import { useMappings } from "@/hooks/use-mappings"
+import { useWatched } from "@/hooks/use-watched"
 
 export default function LibraryPage() {
   const { folders, loading, error } = useLibrary()
   const { mappings } = useMappings()
+  const { watchedMap } = useWatched()
   const [query, setQuery] = useState("")
 
   const filtered = useMemo(() => {
@@ -18,6 +24,30 @@ export default function LibraryPage() {
     if (!q) return folders
     return folders.filter((f) => f.folderName.toLowerCase().includes(q))
   }, [folders, query])
+
+  // In-progress anime: some episodes watched, but not all.
+  const continueWatching = useMemo<ContinueWatchingItem[]>(() => {
+    return folders.flatMap((folder) => {
+      const watched = watchedMap[folder.slug] ?? []
+      if (watched.length === 0 || watched.length >= folder.episodeCount) {
+        return []
+      }
+      const upNext =
+        folder.episodes.find(
+          (ep) => ep.episode != null && !watched.includes(ep.episode)
+        )?.episode ?? 0
+      const mapping = mappings[folder.slug]
+      return [
+        {
+          slug: folder.slug,
+          title: mapping?.title || folder.folderName,
+          coverImage: mapping?.coverImage ?? null,
+          upNext,
+          progressPct: (watched.length / folder.episodeCount) * 100,
+        },
+      ]
+    })
+  }, [folders, watchedMap, mappings])
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -33,6 +63,8 @@ export default function LibraryPage() {
           onQueryChange={setQuery}
         />
         <div className="px-[26px] pb-[30px] pt-[22px]">
+          {!query && <ContinueWatchingRow items={continueWatching} />}
+
           <h2 className="mb-4 font-display text-[17px] font-semibold">
             All series
           </h2>

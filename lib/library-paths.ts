@@ -16,6 +16,17 @@ export function getLibraryRoot(): string {
   return path.resolve(expandTilde(configured))
 }
 
+/**
+ * Absolute path to the Downloads root that holds loose video files to organize.
+ * Defaults to the parent of the library root (so `~/Downloads/anime` →
+ * `~/Downloads`); overridable with DOWNLOADS_PATH.
+ */
+export function getDownloadsRoot(): string {
+  const configured = process.env.DOWNLOADS_PATH?.trim()
+  if (configured) return path.resolve(expandTilde(configured))
+  return path.dirname(getLibraryRoot())
+}
+
 /** A folder name is safe if it has no path separators or traversal. */
 export function isSafeSegment(segment: string): boolean {
   return (

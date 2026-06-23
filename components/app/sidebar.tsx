@@ -2,6 +2,7 @@ import Link from "next/link"
 import { Heart, Home, ListVideo, PlayCircle } from "lucide-react"
 
 import { AnilistConnectButton } from "@/components/app/anilist-connect-button"
+import { OrganizeButton } from "@/components/app/organize-button"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS = [
@@ -80,28 +81,10 @@ export function Sidebar({
         </ul>
       </div>
 
-      {/* AniList connect + library status */}
+      {/* AniList connect + library status / organizer */}
       <div className="mt-auto flex flex-col gap-3 p-4">
         <AnilistConnectButton />
-        <div className="rounded-xl border border-[var(--border)] bg-panel p-3.5">
-          <div className="flex items-center gap-2">
-            <span className="pulse-dot size-1.5 rounded-full bg-green shadow-[0_0_7px_var(--green)]" />
-            <span className="text-[12px] text-text-secondary">
-              Library ready
-            </span>
-          </div>
-          <div className="mt-2.5 h-1 overflow-hidden rounded-full bg-track">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#6a5cf0] to-[#9b6cf0]"
-              style={{
-                width: total > 0 ? `${(scanned / total) * 100}%` : "0%",
-              }}
-            />
-          </div>
-          <p className="mt-2 font-mono text-[11px] text-text-faint">
-            {scanned} / {total} titles
-          </p>
-        </div>
+        <OrganizeButton scanned={scanned} total={total} />
       </div>
     </aside>
   )

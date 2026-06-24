@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Heart, Home, ListVideo, PlayCircle } from "lucide-react"
+import { Heart, Home, ListVideo, PlayCircle, Settings } from "lucide-react"
 
 import { AnilistConnectButton } from "@/components/app/anilist-connect-button"
 import { OrganizeButton } from "@/components/app/organize-button"
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { label: "Continue watching", icon: PlayCircle, href: "/", active: false },
   { label: "Watchlist", icon: ListVideo, href: "/", active: false },
   { label: "Favorites", icon: Heart, href: "/", active: false },
+  { label: "Settings", icon: Settings, href: "/settings", active: false },
 ]
 
 type FolderEntry = { label: string; count: number }

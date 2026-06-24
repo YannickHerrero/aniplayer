@@ -32,6 +32,7 @@ export type TorrentioSource = {
   url: string | null
   infoHash: string | null
   fileIdx: number | null
+  trackers: string[]
   score: number
 }
 
@@ -42,6 +43,7 @@ type TorrentioStreamResponse = {
   infoHash?: string
   fileIdx?: number
   behaviorHints?: { filename?: string }
+  sources?: string[]
 }
 
 type TorrentioResponse = { streams?: TorrentioStreamResponse[] }
@@ -91,6 +93,31 @@ export function pickBestCachedSource(
   return sources.find((s) => s.isCached && s.url) ?? null
 }
 
+/**
+ * Best source overall (already sorted by score): a cached one with a direct
+ * URL if available, otherwise the top torrent that has an infoHash to add to
+ * Real-Debrid. Null only when nothing usable came back.
+ */
+export function pickBestSource(
+  sources: TorrentioSource[]
+): TorrentioSource | null {
+  const cached = sources.find((s) => s.isCached && s.url)
+  if (cached) return cached
+  return sources.find((s) => s.infoHash) ?? null
+}
+
+/** Build a magnet URI from an infoHash + trackers. */
+export function buildMagnet(source: TorrentioSource): string | null {
+  if (!source.infoHash) return null
+  const name = source.filename ?? source.title
+  const params = [`xt=urn:btih:${source.infoHash}`]
+  if (name) params.push(`dn=${encodeURIComponent(name)}`)
+  for (const tracker of source.trackers) {
+    params.push(`tr=${encodeURIComponent(tracker)}`)
+  }
+  return `magnet:?${params.join("&")}`
+}
+
 function normalizeSource(
   source: TorrentioStreamResponse,
   index: number
@@ -104,6 +131,10 @@ function normalizeSource(
       /(🇬🇧|🇺🇸|🇩🇪|🇫🇷|🇮🇹|🇪🇸|🇯🇵|🇰🇷|🇨🇳|🇧🇷|🇵🇹|🇷🇺|🇳🇱|🇵🇱|🇸🇪|🇳🇴|🇩🇰|🇫🇮|🇬🇷|🇹🇷|🇮🇳|🇹🇭|🇻🇳|🇮🇩|🇲🇽|🇦🇷)/g
     )
   )
+
+  const trackers = (source.sources ?? [])
+    .filter((s) => s.startsWith("tracker:"))
+    .map((s) => s.slice("tracker:".length))
 
   const provider = source.name?.replace(/\n+/g, " ").trim() || "torrentio"
   const normalizedTitle = title.replace(/\n+/g, " ").trim()
@@ -126,6 +157,7 @@ function normalizeSource(
     url: source.url ?? null,
     infoHash: source.infoHash ?? null,
     fileIdx: typeof source.fileIdx === "number" ? source.fileIdx : null,
+    trackers,
     score: calculateScore({
       title: normalizedTitle,
       quality,

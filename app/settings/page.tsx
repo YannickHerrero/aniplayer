@@ -6,11 +6,15 @@ import { useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { useDetailLayout } from "@/hooks/use-detail-layout"
 import { useRealDebrid } from "@/hooks/use-realdebrid"
+import { DETAIL_LAYOUTS } from "@/lib/detail-layout"
 import { type RealDebridUser, validateRealDebridKey } from "@/lib/realdebrid"
+import { cn } from "@/lib/utils"
 
 export default function SettingsPage() {
   const { key, configured, setKey, clearKey } = useRealDebrid()
+  const { layout, setLayout, ready: layoutReady } = useDetailLayout()
   const [input, setInput] = useState("")
   const [status, setStatus] = useState<"idle" | "checking" | "ok" | "error">(
     "idle"
@@ -113,6 +117,43 @@ export default function SettingsPage() {
         {status === "error" && error && (
           <p className="mt-2 text-xs text-red-400">{error}</p>
         )}
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-[var(--border-strong)] bg-panel p-5">
+        <h2 className="font-display text-base font-semibold">
+          Detail page layout
+        </h2>
+        <p className="mt-1 text-sm text-text-secondary">
+          How an anime&apos;s page arranges its info and episode list.
+        </p>
+
+        <div className="mt-4 grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          {DETAIL_LAYOUTS.map((opt) => (
+            <button
+              key={opt.id}
+              onClick={() => setLayout(opt.id)}
+              disabled={!layoutReady}
+              className={cn(
+                "rounded-xl border p-3 text-left transition-colors",
+                layout === opt.id
+                  ? "border-accent/60 bg-accent/[0.12]"
+                  : "border-[var(--border-strong)] bg-card hover:border-white/20"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-display text-sm font-semibold text-text-primary">
+                  {opt.label}
+                </span>
+                {layout === opt.id && (
+                  <span className="size-2 rounded-full bg-accent" />
+                )}
+              </div>
+              <p className="mt-1 text-[11px] leading-snug text-text-muted">
+                {opt.hint}
+              </p>
+            </button>
+          ))}
+        </div>
       </section>
     </main>
   )

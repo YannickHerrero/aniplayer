@@ -1,8 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useParams, useSearchParams } from "next/navigation"
-import { Suspense } from "react"
+import { useParams } from "next/navigation"
 
 import { AnilistTrackingPanel } from "@/components/app/anilist-tracking-panel"
 import { DetailHero } from "@/components/app/detail-hero"
@@ -11,27 +10,19 @@ import { VariantCompact } from "@/components/app/detail/variant-compact"
 import { VariantRail } from "@/components/app/detail/variant-rail"
 import { VariantSplit } from "@/components/app/detail/variant-split"
 import { VariantSticky } from "@/components/app/detail/variant-sticky"
-import { VariantSwitcher } from "@/components/app/detail/variant-switcher"
 import { VariantTabs } from "@/components/app/detail/variant-tabs"
 import { EpisodeList } from "@/components/app/episode-list"
 import { Button } from "@/components/ui/button"
 import { Toast } from "@/components/ui/toast"
 import { type AnimeDetail, useAnimeDetail } from "@/hooks/use-anime-detail"
+import { useDetailLayout } from "@/hooks/use-detail-layout"
 
 export default function AnimeDetailPage() {
-  return (
-    <Suspense>
-      <DetailInner />
-    </Suspense>
-  )
-}
-
-function DetailInner() {
   const { slug } = useParams<{ slug: string }>()
-  const variant = useSearchParams().get("v") ?? "0"
   const detail = useAnimeDetail(slug)
+  const { layout, ready } = useDetailLayout()
 
-  if (detail.loading) {
+  if (detail.loading || !ready) {
     return (
       <div className="flex h-screen items-center justify-center text-sm text-text-secondary">
         Loading…
@@ -54,8 +45,7 @@ function DetailInner() {
 
   return (
     <>
-      {renderVariant(variant, detail)}
-      <VariantSwitcher />
+      {renderLayout(layout, detail)}
       <Toast
         message={detail.toast?.message ?? null}
         tone={detail.toast?.tone}
@@ -65,8 +55,8 @@ function DetailInner() {
   )
 }
 
-function renderVariant(variant: string, detail: AnimeDetail) {
-  switch (variant) {
+function renderLayout(layout: string, detail: AnimeDetail) {
+  switch (layout) {
     case "1":
       return <VariantSplit detail={detail} />
     case "2":
@@ -78,12 +68,12 @@ function renderVariant(variant: string, detail: AnimeDetail) {
     case "5":
       return <VariantSticky detail={detail} />
     default:
-      return <CurrentLayout detail={detail} />
+      return <ClassicLayout detail={detail} />
   }
 }
 
-/** The existing layout, kept as the "Current" baseline for comparison. */
-function CurrentLayout({ detail }: { detail: AnimeDetail }) {
+/** The original layout — full hero, then stacked tracking panel + episode list. */
+function ClassicLayout({ detail }: { detail: AnimeDetail }) {
   return (
     <main className="min-h-screen">
       <DetailHero

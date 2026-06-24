@@ -78,5 +78,11 @@ export async function scanLibraryFolder(
   slug: string
 ): Promise<AnimeFolder | null> {
   const all = await scanLibrary()
-  return all.find((folder) => folder.slug === slug) ?? null
+  // Match the encoded slug or the raw folder name: Next.js decodes the route
+  // param, so a slug like "A%20B" arrives here as the folder name "A B".
+  return (
+    all.find(
+      (folder) => folder.slug === slug || folder.folderName === slug
+    ) ?? null
+  )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 import type { AnimeFolder } from "@/lib/types"
 
@@ -8,6 +8,7 @@ type UseLibraryFolderResult = {
   folder: AnimeFolder | null
   loading: boolean
   error: string | null
+  refresh: () => void
 }
 
 export function useLibraryFolder(slug: string): UseLibraryFolderResult {
@@ -15,14 +16,11 @@ export function useLibraryFolder(slug: string): UseLibraryFolderResult {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const controller = new AbortController()
-    setLoading(true)
-    setError(null)
-    ;(async () => {
+  const load = useCallback(
+    async (signal?: AbortSignal) => {
       try {
         const res = await fetch(`/api/library/${encodeURIComponent(slug)}`, {
-          signal: controller.signal,
+          signal,
         })
         if (res.status === 404) {
           setFolder(null)
@@ -32,15 +30,28 @@ export function useLibraryFolder(slug: string): UseLibraryFolderResult {
         if (!res.ok) throw new Error(`Failed to load (${res.status})`)
         const data = (await res.json()) as { folder: AnimeFolder }
         setFolder(data.folder)
+        setError(null)
       } catch (err) {
         if ((err as Error).name === "AbortError") return
         setError((err as Error).message)
       } finally {
         setLoading(false)
       }
-    })()
-    return () => controller.abort()
-  }, [slug])
+    },
+    [slug]
+  )
 
-  return { folder, loading, error }
+  useEffect(() => {
+    const controller = new AbortController()
+    setLoading(true)
+    setError(null)
+    load(controller.signal)
+    return () => controller.abort()
+  }, [load])
+
+  const refresh = useCallback(() => {
+    load()
+  }, [load])
+
+  return { folder, loading, error, refresh }
 }

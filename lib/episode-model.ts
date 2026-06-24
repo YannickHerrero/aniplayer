@@ -1,11 +1,13 @@
 import { sortEpisodes } from "@/lib/episode-parser"
-import type { EpisodeFile } from "@/lib/types"
+import type { DownloadPhase, EpisodeFile } from "@/lib/types"
 
 export type EpisodeStatus =
   | "present" // a file is on disk
   | "downloading" // a download is in progress
   | "missing" // aired, not on disk
   | "unaired" // hasn't aired yet (per AniList)
+
+export type DownloadProgress = { progress: number; phase: DownloadPhase }
 
 export type EpisodeView = {
   /** Episode number (null only for unparseable extra files appended at the end). */
@@ -15,6 +17,7 @@ export type EpisodeView = {
   watched: boolean
   /** 0–100 while downloading, else null. */
   downloadProgress: number | null
+  downloadPhase: DownloadPhase | null
 }
 
 type BuildEpisodeModelOptions = {
@@ -26,8 +29,8 @@ type BuildEpisodeModelOptions = {
   watchedSet: Set<number>
   /** AniList's next-airing episode number; episodes >= this are unaired. */
   nextAiringEpisode: number | null
-  /** Episode → download progress (0–100) for in-flight downloads. */
-  downloading?: Map<number, number>
+  /** Episode → in-flight download progress + phase. */
+  downloading?: Map<number, DownloadProgress>
 }
 
 /**
@@ -58,9 +61,9 @@ export function buildEpisodeModel({
   const views: EpisodeView[] = []
   for (let n = 1; n <= total; n++) {
     const file = byNumber.get(n) ?? null
-    const progress = downloading?.get(n)
+    const dl = downloading?.get(n)
     let status: EpisodeStatus
-    if (progress != null) status = "downloading"
+    if (dl != null) status = "downloading"
     else if (file) status = "present"
     else if (nextAiringEpisode != null && n >= nextAiringEpisode)
       status = "unaired"
@@ -71,7 +74,8 @@ export function buildEpisodeModel({
       status,
       file,
       watched: watchedSet.has(n),
-      downloadProgress: progress ?? null,
+      downloadProgress: dl?.progress ?? null,
+      downloadPhase: dl?.phase ?? null,
     })
   }
 
@@ -83,6 +87,7 @@ export function buildEpisodeModel({
       file,
       watched: file.episode != null && watchedSet.has(file.episode),
       downloadProgress: null,
+      downloadPhase: null,
     })
   }
 

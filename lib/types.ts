@@ -46,11 +46,15 @@ export type WatchedFile = Record<string, WatchedEntry>
 /** Persisted download state (data/downloads.json). */
 export type DownloadStatus = "downloading" | "completed" | "failed"
 
+/** Sub-state while status is "downloading". */
+export type DownloadPhase = "resolving" | "caching" | "transferring"
+
 export type DownloadEntry = {
   slug: string
   episode: number
   status: DownloadStatus
-  /** 0–100; 0 when total size is unknown. */
+  phase: DownloadPhase
+  /** 0–100; 0 when unknown. During "caching" this is Real-Debrid's progress. */
   progress: number
   bytes: number
   totalBytes: number | null

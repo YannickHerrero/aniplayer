@@ -3,7 +3,7 @@ import { getMapping } from "@/lib/mapping-store"
 import {
   type TorrentioSource,
   fetchTorrentioSources,
-  pickBestCachedSource,
+  pickBestSource,
 } from "@/lib/torrentio"
 
 export type ResolveResult =
@@ -33,7 +33,7 @@ export async function resolveBestSource(
     realDebridKey,
     signal,
   })
-  const best = pickBestCachedSource(sources)
+  const best = pickBestSource(sources)
   if (!best) return { status: "no-source" }
 
   return { status: "ok", source: best }

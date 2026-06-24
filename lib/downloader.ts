@@ -12,8 +12,20 @@ import {
   isSafeSegment,
   slugToFolderName,
 } from "@/lib/library-paths"
+import {
+  type RdTorrentFile,
+  type RdTorrentInfo,
+  addMagnet,
+  getTorrentInfo,
+  selectFiles,
+  unrestrictLink,
+} from "@/lib/real-debrid-api"
 import { resolveBestSource } from "@/lib/resolve-source"
+import { type TorrentioSource, buildMagnet } from "@/lib/torrentio"
 import type { DownloadEntry } from "@/lib/types"
+
+const RD_POLL_INTERVAL_MS = 3000
+const RD_MAX_WAIT_MS = 20 * 60 * 1000
 
 export class DownloadError extends Error {
   constructor(
@@ -83,6 +95,7 @@ export async function startDownload(
     slug,
     episode,
     status: "downloading",
+    phase: "resolving",
     progress: 0,
     bytes: 0,
     totalBytes: null,
@@ -140,8 +153,8 @@ async function runDownload(
   try {
     const result = await resolveBestSource(slug, episode, realDebridKey)
     if (result.status === "unmappable") return fail(entry, "Title not mappable")
-    if (result.status === "no-source") return fail(entry, "No cached source")
-    if (!result.source.url) return fail(entry, "Source has no direct link")
+    if (result.status === "no-source") return fail(entry, "No source found")
+    const source = result.source
 
     const folderName = slugToFolderName(slug)
     const root = getLibraryRoot()
@@ -155,15 +168,29 @@ async function runDownload(
       return fail(entry, "Path escapes library root")
     }
 
-    const destName = `${folderName} - ${String(episode).padStart(2, "0")}${pickExtension(result.source.filename)}`
+    const destName = `${folderName} - ${String(episode).padStart(2, "0")}${pickExtension(source.filename)}`
     const destPath = path.join(folderDir, destName)
     entry.fileName = destName
+    save(entry)
 
     if (await fileExists(destPath)) {
       return complete(entry)
     }
 
-    const response = await fetch(result.source.url, { redirect: "follow" })
+    // Cached → direct URL; otherwise add to Real-Debrid and wait for it.
+    const directUrl =
+      source.isCached && source.url
+        ? source.url
+        : await resolveViaRealDebrid(source, entry, realDebridKey)
+
+    // Transfer phase: stream the direct link to disk.
+    entry.phase = "transferring"
+    entry.progress = 0
+    entry.bytes = 0
+    entry.totalBytes = null
+    save(entry, true)
+
+    const response = await fetch(directUrl, { redirect: "follow" })
     if (!response.ok || !response.body) {
       return fail(entry, `Download failed (${response.status})`)
     }
@@ -196,10 +223,101 @@ async function runDownload(
     await rename(partPath, destPath)
     partPath = null
     complete(entry)
-  } catch {
+  } catch (err) {
     if (partPath) await unlink(partPath).catch(() => {})
-    fail(entry, "Download error")
+    fail(entry, err instanceof Error ? err.message : "Download error")
   }
+}
+
+/**
+ * Add a torrent to Real-Debrid, select the target episode's file, wait for it
+ * to finish caching, and return a direct, streamable URL.
+ */
+async function resolveViaRealDebrid(
+  source: TorrentioSource,
+  entry: DownloadEntry,
+  key: string
+): Promise<string> {
+  const magnet = buildMagnet(source)
+  if (!magnet) throw new Error("Source has no magnet")
+
+  const id = await addMagnet(magnet, key)
+
+  // Wait for RD to read the torrent's file list, then select the episode file.
+  let info = await waitForFiles(id, key)
+  const files = chooseFiles(info.files, source)
+  await selectFiles(id, files, key)
+
+  // Caching phase: poll until Real-Debrid has the file ready.
+  entry.phase = "caching"
+  entry.progress = 0
+  save(entry, true)
+  info = await pollUntilReady(id, key, entry)
+
+  if (info.links.length === 0) throw new Error("Real-Debrid returned no links")
+  return unrestrictLink(info.links[0], key)
+}
+
+async function waitForFiles(id: string, key: string): Promise<RdTorrentInfo> {
+  const deadline = Date.now() + 60_000
+  while (Date.now() < deadline) {
+    const info = await getTorrentInfo(id, key)
+    if (info.files.length > 0) return info
+    if (["error", "magnet_error", "dead", "virus"].includes(info.status)) {
+      throw new Error("Real-Debrid could not read the torrent")
+    }
+    await delay(1500)
+  }
+  throw new Error("Timed out reading torrent files")
+}
+
+async function pollUntilReady(
+  id: string,
+  key: string,
+  entry: DownloadEntry
+): Promise<RdTorrentInfo> {
+  const deadline = Date.now() + RD_MAX_WAIT_MS
+  while (Date.now() < deadline) {
+    const info = await getTorrentInfo(id, key)
+    if (info.status === "downloaded") return info
+    if (["error", "magnet_error", "dead", "virus"].includes(info.status)) {
+      throw new Error("Real-Debrid failed to cache the torrent")
+    }
+    if (typeof info.progress === "number") {
+      entry.progress = Math.min(99, info.progress)
+      save(entry)
+    }
+    await delay(RD_POLL_INTERVAL_MS)
+  }
+  throw new Error("Timed out waiting for Real-Debrid")
+}
+
+/** Select the single episode file (by Torrentio fileIdx / filename), else all. */
+function chooseFiles(files: RdTorrentFile[], source: TorrentioSource): string {
+  const videos = files.filter((f) => isVideoFile(f.path))
+  if (videos.length <= 1) return "all"
+
+  // Match the exact filename Torrentio pointed at.
+  if (source.filename) {
+    const target = source.filename.toLowerCase()
+    const byName = videos.find((f) =>
+      f.path.toLowerCase().endsWith(target)
+    )
+    if (byName) return String(byName.id)
+  }
+
+  // Torrentio fileIdx is the 0-based index into the torrent's file list.
+  if (source.fileIdx != null && files[source.fileIdx]) {
+    return String(files[source.fileIdx].id)
+  }
+
+  // Fallback: the largest video file.
+  const largest = videos.reduce((a, b) => (b.bytes > a.bytes ? b : a))
+  return String(largest.id)
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /** Forget a download record (e.g. once a rescan has picked up the file). */

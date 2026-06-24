@@ -392,6 +392,105 @@ export async function fetchAnilistWatchingList(
   return result
 }
 
+export type AnilistFavoriteEntry = {
+  anilistId: number
+  title: string
+  coverImage: string | null
+  episodes: number | null
+  nextEpisode: number | null
+}
+
+const FAVORITES_QUERY = `
+  query ($userId: Int, $page: Int) {
+    User(id: $userId) {
+      favourites {
+        anime(page: $page, perPage: 50) {
+          pageInfo {
+            hasNextPage
+          }
+          nodes {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            coverImage {
+              large
+              medium
+            }
+            episodes
+            nextAiringEpisode {
+              episode
+            }
+          }
+        }
+      }
+    }
+  }
+`
+
+type FavoriteNode = {
+  id: number
+  title?: {
+    english?: string | null
+    romaji?: string | null
+    native?: string | null
+  } | null
+  coverImage?: { large?: string | null; medium?: string | null } | null
+  episodes?: number | null
+  nextAiringEpisode?: { episode?: number | null } | null
+}
+
+/** Fetch the viewer's favourited anime (paginated). Requires userId + token. */
+export async function fetchAnilistFavorites(
+  userId: number,
+  token: string,
+  signal?: AbortSignal
+): Promise<AnilistFavoriteEntry[]> {
+  if (!Number.isInteger(userId) || userId <= 0) return []
+
+  const out: AnilistFavoriteEntry[] = []
+  const seen = new Set<number>()
+  let page = 1
+  // Bound the loop; few users have >250 favourites.
+  for (let i = 0; i < 6; i++) {
+    const data = await requestAnilist<{
+      User?: {
+        favourites?: {
+          anime?: {
+            pageInfo?: { hasNextPage?: boolean } | null
+            nodes?: FavoriteNode[] | null
+          } | null
+        } | null
+      } | null
+    }>({ query: FAVORITES_QUERY, variables: { userId, page }, token, signal })
+
+    const anime = data.User?.favourites?.anime
+    for (const node of anime?.nodes ?? []) {
+      if (!node || seen.has(node.id)) continue
+      seen.add(node.id)
+      out.push({
+        anilistId: node.id,
+        title:
+          node.title?.english?.trim() ||
+          node.title?.romaji?.trim() ||
+          node.title?.native?.trim() ||
+          `Anime ${node.id}`,
+        coverImage: node.coverImage?.large ?? node.coverImage?.medium ?? null,
+        episodes: typeof node.episodes === "number" ? node.episodes : null,
+        nextEpisode:
+          typeof node.nextAiringEpisode?.episode === "number"
+            ? node.nextAiringEpisode.episode
+            : null,
+      })
+    }
+    if (!anime?.pageInfo?.hasNextPage) break
+    page++
+  }
+  return out
+}
+
 export async function fetchAnilistViewer(
   token: string,
   signal?: AbortSignal

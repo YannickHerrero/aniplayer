@@ -1,4 +1,7 @@
+"use client"
+
 import Link from "next/link"
+import { usePathname } from "next/navigation"
 import { Heart, Home, ListVideo, PlayCircle, Settings } from "lucide-react"
 
 import { AnilistConnectButton } from "@/components/app/anilist-connect-button"
@@ -6,11 +9,11 @@ import { OrganizeButton } from "@/components/app/organize-button"
 import { cn } from "@/lib/utils"
 
 const NAV_ITEMS = [
-  { label: "Home", icon: Home, href: "/", active: true },
-  { label: "Continue watching", icon: PlayCircle, href: "/", active: false },
-  { label: "Watchlist", icon: ListVideo, href: "/", active: false },
-  { label: "Favorites", icon: Heart, href: "/", active: false },
-  { label: "Settings", icon: Settings, href: "/settings", active: false },
+  { label: "Home", icon: Home, href: "/" },
+  { label: "Continue watching", icon: PlayCircle, href: "/continue" },
+  { label: "Watchlist", icon: ListVideo, href: "/watchlist" },
+  { label: "Favorites", icon: Heart, href: "/favorites" },
+  { label: "Settings", icon: Settings, href: "/settings" },
 ]
 
 type FolderEntry = { label: string; count: number }
@@ -26,6 +29,7 @@ export function Sidebar({
   scanned = 0,
   total = 0,
 }: SidebarProps) {
+  const pathname = usePathname()
   return (
     <aside className="flex w-[236px] shrink-0 flex-col border-r border-[var(--border)] bg-sidebar">
       {/* Logo */}
@@ -38,15 +42,16 @@ export function Sidebar({
 
       {/* Nav */}
       <nav className="flex flex-col gap-0.5 px-3">
-        {NAV_ITEMS.map((item, i) => {
+        {NAV_ITEMS.map((item) => {
           const Icon = item.icon
+          const active = pathname === item.href
           return (
             <Link
-              key={i}
+              key={item.href}
               href={item.href}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                item.active
+                active
                   ? "bg-accent/[0.16] text-white"
                   : "text-text-secondary hover:bg-white/[0.04]"
               )}

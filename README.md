@@ -11,6 +11,18 @@ Two pages:
   episode list where each episode opens in VLC and can be **marked complete**
   (which pushes your progress to AniList).
 
+## Demo
+
+The home page — local library, "Continue watching", and your AniList
+_Watching_ list (click a watching show to add it and download episodes):
+
+![Aniplayer home page](docs/home.png)
+
+The detail page — AniList tracking panel and per-episode **Download** buttons
+for missing episodes:
+
+![Aniplayer detail page](docs/detail.png)
+
 > ⚠️ This app reads your filesystem and launches VLC via local API routes with
 > no authentication. It is meant to run only on `localhost` for personal use —
 > **do not expose it to a network.**

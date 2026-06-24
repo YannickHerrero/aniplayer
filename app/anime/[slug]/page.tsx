@@ -12,8 +12,10 @@ import { Button } from "@/components/ui/button"
 import { Toast, type ToastTone } from "@/components/ui/toast"
 import { useAnilistAuth } from "@/hooks/use-anilist-auth"
 import { useAnilistMedia } from "@/hooks/use-anilist-media"
+import { useDownloads } from "@/hooks/use-downloads"
 import { useLibraryFolder } from "@/hooks/use-library-folder"
 import { useMappings } from "@/hooks/use-mappings"
+import { useRealDebrid } from "@/hooks/use-realdebrid"
 import { useWatched } from "@/hooks/use-watched"
 import { saveAnilistProgress } from "@/lib/anilist"
 import { autoMatchAnime } from "@/lib/auto-match"
@@ -29,8 +31,14 @@ export default function AnimeDetailPage() {
   const slug = params.slug
 
   const { token, connected } = useAnilistAuth()
+  const { key: rdKey, configured: rdConfigured } = useRealDebrid()
 
-  const { folder, loading: folderLoading, error } = useLibraryFolder(slug)
+  const {
+    folder,
+    loading: folderLoading,
+    error,
+    refresh: refreshFolder,
+  } = useLibraryFolder(slug)
   const { mappings, saveMapping } = useMappings()
   const { watchedMap, pending, toggle } = useWatched()
 
@@ -44,6 +52,35 @@ export default function AnimeDetailPage() {
     message: string
     tone: ToastTone
   } | null>(null)
+
+  // Is this title mappable to a Kitsu id (download feature available)?
+  const [mappable, setMappable] = useState(false)
+  useEffect(() => {
+    if (!rdConfigured || !mapping?.anilistId) {
+      setMappable(false)
+      return
+    }
+    const controller = new AbortController()
+    fetch(`/api/mappable?slug=${encodeURIComponent(slug)}`, {
+      signal: controller.signal,
+    })
+      .then((res) => res.json())
+      .then((data: { mappable?: boolean }) => setMappable(Boolean(data.mappable)))
+      .catch(() => {})
+    return () => controller.abort()
+  }, [rdConfigured, mapping?.anilistId, slug])
+
+  const {
+    start: startDownload,
+    downloadingProgress,
+    startingEpisodes,
+    noSourceEpisodes,
+  } = useDownloads({
+    slug,
+    rdKey,
+    onComplete: () => refreshFolder(),
+    onError: (message) => setToast({ message, tone: "error" }),
+  })
 
   // Lazily auto-match this folder to AniList the first time we see it unmapped.
   const attempted = useRef(false)
@@ -139,6 +176,7 @@ export default function AnimeDetailPage() {
     episodes: folder.episodes,
     watchedSet,
     nextAiringEpisode: media?.nextAiringEpisode?.episode ?? null,
+    downloading: downloadingProgress,
   })
 
   // Next unwatched episode on disk → drives the Resume button.
@@ -192,6 +230,10 @@ export default function AnimeDetailPage() {
                 .map((k) => Number(k.split(":")[1]))
             )
           }
+          canDownload={rdConfigured && mappable}
+          onDownload={startDownload}
+          downloadPendingEpisodes={startingEpisodes}
+          noSourceEpisodes={noSourceEpisodes}
         />
       </div>
 

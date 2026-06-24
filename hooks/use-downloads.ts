@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import type { DownloadProgress } from "@/lib/episode-model"
 import type { DownloadEntry } from "@/lib/types"
 
 type Options = {
@@ -13,11 +14,11 @@ type Options = {
 
 type UseDownloadsResult = {
   start: (episode: number) => Promise<void>
-  /** episode → progress (0–100), only while downloading. */
-  downloadingProgress: Map<number, number>
+  /** episode → progress + phase, only while downloading. */
+  downloadingProgress: Map<number, DownloadProgress>
   /** episodes whose download is being started/resolved. */
   startingEpisodes: Set<number>
-  /** episodes whose last attempt found no cached source. */
+  /** episodes whose last attempt found no source. */
   noSourceEpisodes: Set<number>
 }
 
@@ -64,7 +65,7 @@ export function useDownloads({
             if (dl.status === "completed") {
               cb.current.onComplete?.(ep)
             } else if (dl.status === "failed") {
-              if (/cached source/i.test(dl.error ?? "")) {
+              if (/no source/i.test(dl.error ?? "")) {
                 setNoSource((s) => new Set(s).add(ep))
               } else {
                 cb.current.onError?.(dl.error ?? "Download failed", ep)
@@ -124,9 +125,11 @@ export function useDownloads({
     [rdKey, slug]
   )
 
-  const downloadingProgress = new Map<number, number>()
+  const downloadingProgress = new Map<number, DownloadProgress>()
   for (const d of Object.values(downloads)) {
-    if (d.status === "downloading") downloadingProgress.set(d.episode, d.progress)
+    if (d.status === "downloading") {
+      downloadingProgress.set(d.episode, { progress: d.progress, phase: d.phase })
+    }
   }
 
   return {

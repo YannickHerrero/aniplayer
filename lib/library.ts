@@ -6,8 +6,45 @@ import {
   parseEpisode,
   sortEpisodes,
 } from "@/lib/episode-parser"
-import { folderNameToSlug, getLibraryRoot } from "@/lib/library-paths"
+import {
+  getLibraryRoot,
+  isSafeSegment,
+  folderNameToSlug,
+} from "@/lib/library-paths"
 import type { AnimeFolder, EpisodeFile } from "@/lib/types"
+
+/** Turn an anime title into a filesystem-safe folder name. */
+export function sanitizeFolderName(title: string): string {
+  const cleaned = title
+    .replace(/[/\\:*?"<>|]/g, " ") // illegal filename chars
+    .replace(/\s+/g, " ")
+    .replace(/^[.\s]+|[.\s]+$/g, "") // no leading/trailing dots or spaces
+    .trim()
+  return cleaned
+}
+
+/**
+ * Create an empty library folder for a title (for AniList-only shows the user
+ * wants to start downloading). Returns the created/existing folder name, or
+ * null if the title can't be turned into a safe folder name.
+ */
+export async function createAnimeFolder(title: string): Promise<string | null> {
+  const folderName = sanitizeFolderName(title)
+  if (!isSafeSegment(folderName)) return null
+
+  const root = getLibraryRoot()
+  const dir = path.join(root, folderName)
+
+  // Containment: the resolved dir must stay inside the library root.
+  const realRoot = await fs.realpath(root).catch(() => root)
+  const resolved = path.resolve(dir)
+  if (resolved !== realRoot && !resolved.startsWith(realRoot + path.sep)) {
+    return null
+  }
+
+  await fs.mkdir(dir, { recursive: true })
+  return folderName
+}
 
 /** Scan a single anime folder into episode files. */
 async function scanAnimeFolder(

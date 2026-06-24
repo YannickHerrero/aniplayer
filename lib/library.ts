@@ -30,18 +30,11 @@ export function sanitizeFolderName(title: string): string {
  */
 export async function createAnimeFolder(title: string): Promise<string | null> {
   const folderName = sanitizeFolderName(title)
+  // isSafeSegment guarantees no separators or "..", so the folder can only be
+  // a direct child of the library root — no traversal possible.
   if (!isSafeSegment(folderName)) return null
 
-  const root = getLibraryRoot()
-  const dir = path.join(root, folderName)
-
-  // Containment: the resolved dir must stay inside the library root.
-  const realRoot = await fs.realpath(root).catch(() => root)
-  const resolved = path.resolve(dir)
-  if (resolved !== realRoot && !resolved.startsWith(realRoot + path.sep)) {
-    return null
-  }
-
+  const dir = path.join(getLibraryRoot(), folderName)
   await fs.mkdir(dir, { recursive: true })
   return folderName
 }

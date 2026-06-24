@@ -17,6 +17,7 @@ import { useMappings } from "@/hooks/use-mappings"
 import { useWatched } from "@/hooks/use-watched"
 import { saveAnilistProgress } from "@/lib/anilist"
 import { autoMatchAnime } from "@/lib/auto-match"
+import { buildEpisodeModel } from "@/lib/episode-model"
 import {
   effectiveWatchedSet,
   maxWatched,
@@ -133,6 +134,13 @@ export default function AnimeDetailPage() {
     localCount
   )
 
+  const episodeViews = buildEpisodeModel({
+    total,
+    episodes: folder.episodes,
+    watchedSet,
+    nextAiringEpisode: media?.nextAiringEpisode?.episode ?? null,
+  })
+
   // Next unwatched episode on disk → drives the Resume button.
   const resumeEpisode =
     folder.episodes.find(
@@ -173,8 +181,8 @@ export default function AnimeDetailPage() {
         />
 
         <EpisodeList
-          folder={folder}
-          watchedSet={watchedSet}
+          episodes={episodeViews}
+          folderPath={folder.absolutePath}
           onPlay={playEpisode}
           onToggleWatched={handleToggleWatched}
           pendingEpisodes={

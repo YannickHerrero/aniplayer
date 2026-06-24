@@ -1,91 +1,83 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 
 import { EpisodeRow } from "@/components/app/episode-row"
-import { cn } from "@/lib/utils"
-import type { AnimeFolder } from "@/lib/types"
+import type { EpisodeView } from "@/lib/episode-model"
 
 type EpisodeListProps = {
-  folder: AnimeFolder
-  watchedSet: Set<number>
+  episodes: EpisodeView[]
+  folderPath: string
   onPlay: (fileName: string) => void
   onToggleWatched: (episodeNumber: number) => void
   pendingEpisodes?: Set<number>
+  /** Download available for this title (RD set + title mappable to Kitsu). */
+  canDownload?: boolean
+  onDownload?: (episodeNumber: number) => void
+  downloadPendingEpisodes?: Set<number>
+  noSourceEpisodes?: Set<number>
 }
 
 export function EpisodeList({
-  folder,
-  watchedSet,
+  episodes,
+  folderPath,
   onPlay,
   onToggleWatched,
   pendingEpisodes,
+  canDownload = false,
+  onDownload,
+  downloadPendingEpisodes,
+  noSourceEpisodes,
 }: EpisodeListProps) {
-  const seasons = useMemo(() => {
-    const set = new Set<number>()
-    for (const ep of folder.episodes) if (ep.season != null) set.add(ep.season)
-    return [...set].sort((a, b) => a - b)
-  }, [folder.episodes])
-
-  const [activeSeason, setActiveSeason] = useState<number | null>(
-    seasons[0] ?? null
-  )
-
-  const visible = useMemo(() => {
-    if (seasons.length <= 1) return folder.episodes
-    return folder.episodes.filter((ep) => ep.season === activeSeason)
-  }, [folder.episodes, seasons.length, activeSeason])
-
-  // The first unwatched episode is "up next".
+  // The first present, unwatched episode is "up next".
   const upNext = useMemo(() => {
-    for (const ep of visible) {
-      if (ep.episode != null && !watchedSet.has(ep.episode)) return ep.episode
+    for (const ep of episodes) {
+      if (ep.status === "present" && ep.episode != null && !ep.watched) {
+        return ep.episode
+      }
     }
     return null
-  }, [visible, watchedSet])
+  }, [episodes])
+
+  const presentCount = episodes.filter((e) => e.status === "present").length
 
   return (
     <section>
-      <div className="mb-1.5 flex items-center justify-between">
+      <div className="mb-1.5 flex items-baseline gap-3">
         <h2 className="font-display text-xl font-semibold">Episodes</h2>
-      </div>
-
-      <div className="mb-3 flex items-center gap-2">
-        {seasons.length > 1 &&
-          seasons.map((s) => (
-            <button
-              key={s}
-              onClick={() => setActiveSeason(s)}
-              className={cn(
-                "rounded-[9px] border px-3.5 py-[7px] text-xs font-medium transition-colors",
-                s === activeSeason
-                  ? "border-accent/40 bg-accent/[0.18] text-white"
-                  : "border-[var(--border-strong)] bg-card text-text-secondary"
-              )}
-            >
-              Season {s}
-            </button>
-          ))}
+        <span className="font-mono text-[11px] text-text-faint">
+          {presentCount} / {episodes.length} in library
+        </span>
       </div>
 
       <p className="mb-3 truncate font-sans text-xs text-text-muted">
-        {folder.absolutePath}
+        {folderPath}
       </p>
 
       <div className="flex flex-col gap-[3px]">
-        {visible.map((ep) => (
+        {episodes.map((ep, i) => (
           <EpisodeRow
-            key={ep.fileName}
-            episode={ep}
-            watched={ep.episode != null && watchedSet.has(ep.episode)}
+            key={ep.episode != null ? `e${ep.episode}` : `x${i}`}
+            episode={ep.episode}
+            status={ep.status}
+            fileName={ep.file?.fileName ?? null}
+            quality={ep.file?.quality ?? null}
+            watched={ep.watched}
             isUpNext={ep.episode != null && ep.episode === upNext}
-            onPlay={() => onPlay(ep.fileName)}
+            downloadProgress={ep.downloadProgress}
+            onPlay={() => ep.file && onPlay(ep.file.fileName)}
             onToggleWatched={() =>
               ep.episode != null && onToggleWatched(ep.episode)
             }
             togglePending={
               ep.episode != null && pendingEpisodes?.has(ep.episode)
             }
+            canDownload={canDownload}
+            onDownload={() => ep.episode != null && onDownload?.(ep.episode)}
+            downloadPending={
+              ep.episode != null && downloadPendingEpisodes?.has(ep.episode)
+            }
+            noSource={ep.episode != null && noSourceEpisodes?.has(ep.episode)}
           />
         ))}
       </div>

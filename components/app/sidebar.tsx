@@ -32,7 +32,7 @@ export function Sidebar({
       <div className="flex items-center gap-2.5 px-5 py-[18px]">
         <div className="size-7 rounded-lg bg-gradient-to-br from-[#6a5cf0] to-[#9b6cf0]" />
         <span className="font-display text-base font-bold tracking-tight">
-          Tsuki
+          aniplayer
         </span>
       </div>
 

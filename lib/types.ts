@@ -42,3 +42,22 @@ export type WatchedEntry = {
 }
 
 export type WatchedFile = Record<string, WatchedEntry>
+
+/** Persisted download state (data/downloads.json). */
+export type DownloadStatus = "downloading" | "completed" | "failed"
+
+export type DownloadEntry = {
+  slug: string
+  episode: number
+  status: DownloadStatus
+  /** 0–100; 0 when total size is unknown. */
+  progress: number
+  bytes: number
+  totalBytes: number | null
+  fileName: string | null
+  error: string | null
+  updatedAt: string
+}
+
+/** slug → episode (string key) → entry */
+export type DownloadsFile = Record<string, Record<string, DownloadEntry>>

@@ -151,7 +151,7 @@ async function runDownload(
   const { slug, episode } = entry
   let partPath: string | null = null
   try {
-    const result = await resolveBestSource(slug, episode, realDebridKey)
+    const result = await resolveBestSource(slug, episode)
     if (result.status === "unmappable") return fail(entry, "Title not mappable")
     if (result.status === "no-source") return fail(entry, "No source found")
     const source = result.source

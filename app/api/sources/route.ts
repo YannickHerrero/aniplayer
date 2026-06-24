@@ -29,7 +29,7 @@ export async function GET(request: Request) {
     )
   }
 
-  const result = await resolveBestSource(slug, episode, key)
+  const result = await resolveBestSource(slug, episode)
 
   if (result.status === "ok") {
     const { title, quality, size, filename, isCached } = result.source

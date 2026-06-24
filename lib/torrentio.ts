@@ -48,13 +48,13 @@ type TorrentioStreamResponse = {
 
 type TorrentioResponse = { streams?: TorrentioStreamResponse[] }
 
-function buildConfig(realDebridKey: string): string {
+// No realdebrid in the config: a public query returns infoHash + fileIdx for
+// every source, which we then drive through Real-Debrid ourselves (add-magnet).
+function buildConfig(): string {
   return [
     `providers=${PROVIDERS.join(",")}`,
     "sort=qualitysize",
     "qualityfilter=scr,cam",
-    "debridoptions=nodownloadlinks",
-    `realdebrid=${realDebridKey}`,
   ].join("|")
 }
 
@@ -62,17 +62,15 @@ function buildConfig(realDebridKey: string): string {
 export async function fetchTorrentioSources({
   kitsuId,
   episode,
-  realDebridKey,
   signal,
 }: {
   kitsuId: number
   episode: number | null
-  realDebridKey: string
   signal?: AbortSignal
 }): Promise<TorrentioSource[]> {
   const id = episode != null ? `kitsu:${kitsuId}:${episode}` : `kitsu:${kitsuId}`
   const kind = episode != null ? "series" : "movie"
-  const url = `${TORRENTIO_BASE_URL}/${buildConfig(realDebridKey)}/stream/${kind}/${id}.json`
+  const url = `${TORRENTIO_BASE_URL}/${buildConfig()}/stream/${kind}/${id}.json`
 
   const response = await fetch(url, { cache: "no-store", signal })
   if (!response.ok) {

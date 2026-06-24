@@ -214,6 +214,84 @@ export async function fetchAnilistMediaById(
   return data.Media ? normalizeAnilistMedia(data.Media) : null
 }
 
+export type AnilistProgressInfo = {
+  id: number
+  episodes: number | null
+  /** Viewer's watched progress — null when unauthenticated or untracked. */
+  progress: number | null
+  nextEpisode: number | null
+}
+
+const PROGRESS_BATCH_QUERY = `
+  query ($ids: [Int]) {
+    Page(perPage: 50) {
+      media(id_in: $ids, type: ANIME) {
+        id
+        episodes
+        nextAiringEpisode {
+          episode
+        }
+        mediaListEntry {
+          progress
+        }
+      }
+    }
+  }
+`
+
+/**
+ * Fetch watched progress + episode counts for many anime at once. Requires a
+ * token for the per-user progress; episode counts come back regardless.
+ */
+export async function fetchAnilistProgressBatch(
+  ids: number[],
+  token?: string | null,
+  signal?: AbortSignal
+): Promise<AnilistProgressInfo[]> {
+  const valid = Array.from(
+    new Set(ids.filter((id) => Number.isInteger(id) && id > 0))
+  )
+  if (valid.length === 0) return []
+
+  // AniList returns at most one page (50) per query — chunk larger libraries.
+  const chunks: number[][] = []
+  for (let i = 0; i < valid.length; i += 50) {
+    chunks.push(valid.slice(i, i + 50))
+  }
+
+  const pages = await Promise.all(
+    chunks.map((chunk) =>
+      requestAnilist<{
+        Page?: {
+          media?:
+            | Array<{
+                id: number
+                episodes?: number | null
+                nextAiringEpisode?: { episode?: number | null } | null
+                mediaListEntry?: { progress?: number | null } | null
+              }>
+            | null
+        } | null
+      }>({ query: PROGRESS_BATCH_QUERY, variables: { ids: chunk }, token, signal })
+    )
+  )
+
+  return pages.flatMap((data) =>
+    (data.Page?.media ?? []).map((m) => ({
+      id: m.id,
+      episodes: typeof m.episodes === "number" ? m.episodes : null,
+      progress:
+        typeof m.mediaListEntry?.progress === "number"
+          ? m.mediaListEntry.progress
+          : null,
+      nextEpisode:
+        typeof m.nextAiringEpisode?.episode === "number"
+          ? m.nextAiringEpisode.episode
+          : null,
+    }))
+  )
+}
+
 export async function fetchAnilistViewer(
   token: string,
   signal?: AbortSignal

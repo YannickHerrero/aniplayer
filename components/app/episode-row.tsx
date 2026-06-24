@@ -1,6 +1,7 @@
 import { Check, Clock, Download, Loader2, Play } from "lucide-react"
 
 import type { EpisodeStatus } from "@/lib/episode-model"
+import type { DownloadPhase } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
 type EpisodeRowProps = {
@@ -12,6 +13,7 @@ type EpisodeRowProps = {
   isUpNext?: boolean
   /** 0–100 while downloading. */
   downloadProgress?: number | null
+  downloadPhase?: DownloadPhase | null
   onPlay?: () => void
   onToggleWatched?: () => void
   togglePending?: boolean
@@ -32,6 +34,7 @@ export function EpisodeRow({
   watched,
   isUpNext = false,
   downloadProgress,
+  downloadPhase,
   onPlay,
   onToggleWatched,
   togglePending = false,
@@ -122,12 +125,18 @@ export function EpisodeRow({
         </div>
         <p className="mt-1 truncate text-xs text-text-tertiary">
           {isDownloading ? (
-            <span className="text-[#9b8df5]">Downloading…</span>
+            <span className="text-[#9b8df5]">
+              {downloadPhase === "resolving"
+                ? "Finding source…"
+                : downloadPhase === "caching"
+                  ? "Caching on Real-Debrid…"
+                  : "Downloading…"}
+            </span>
           ) : isUnaired ? (
             <span className="text-text-muted">Not aired yet</span>
           ) : isMissing ? (
             <span className="text-text-muted">
-              {noSource ? "No cached source" : "Not in library"}
+              {noSource ? "No source found" : "Not in library"}
             </span>
           ) : watched ? (
             <>

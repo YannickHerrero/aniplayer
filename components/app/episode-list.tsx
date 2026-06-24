@@ -65,6 +65,7 @@ export function EpisodeList({
             watched={ep.watched}
             isUpNext={ep.episode != null && ep.episode === upNext}
             downloadProgress={ep.downloadProgress}
+            downloadPhase={ep.downloadPhase}
             onPlay={() => ep.file && onPlay(ep.file.fileName)}
             onToggleWatched={() =>
               ep.episode != null && onToggleWatched(ep.episode)

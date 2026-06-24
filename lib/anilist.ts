@@ -292,6 +292,106 @@ export async function fetchAnilistProgressBatch(
   )
 }
 
+export type AnilistWatchingEntry = {
+  anilistId: number
+  title: string
+  coverImage: string | null
+  /** Total episodes (null while still releasing). */
+  episodes: number | null
+  /** Next airing episode number, if any. */
+  nextEpisode: number | null
+  /** Episodes the viewer has watched. */
+  progress: number
+}
+
+const WATCHING_LIST_QUERY = `
+  query ($userId: Int) {
+    MediaListCollection(userId: $userId, status: CURRENT, type: ANIME) {
+      lists {
+        entries {
+          progress
+          media {
+            id
+            title {
+              english
+              romaji
+              native
+            }
+            coverImage {
+              large
+              medium
+            }
+            episodes
+            nextAiringEpisode {
+              episode
+            }
+          }
+        }
+      }
+    }
+  }
+`
+
+type WatchingEntryResponse = {
+  progress?: number | null
+  media?: {
+    id: number
+    title?: {
+      english?: string | null
+      romaji?: string | null
+      native?: string | null
+    } | null
+    coverImage?: { large?: string | null; medium?: string | null } | null
+    episodes?: number | null
+    nextAiringEpisode?: { episode?: number | null } | null
+  } | null
+}
+
+/**
+ * Fetch the viewer's "Watching" (CURRENT) anime list. Requires both a userId
+ * and a token (the list is per-user). Flattens custom lists and dedupes by id.
+ */
+export async function fetchAnilistWatchingList(
+  userId: number,
+  token: string,
+  signal?: AbortSignal
+): Promise<AnilistWatchingEntry[]> {
+  if (!Number.isInteger(userId) || userId <= 0) return []
+
+  const data = await requestAnilist<{
+    MediaListCollection?: {
+      lists?: Array<{ entries?: WatchingEntryResponse[] | null } | null> | null
+    } | null
+  }>({ query: WATCHING_LIST_QUERY, variables: { userId }, token, signal })
+
+  const seen = new Set<number>()
+  const result: AnilistWatchingEntry[] = []
+  for (const list of data.MediaListCollection?.lists ?? []) {
+    for (const entry of list?.entries ?? []) {
+      const media = entry?.media
+      if (!media || seen.has(media.id)) continue
+      seen.add(media.id)
+      const title =
+        media.title?.english?.trim() ||
+        media.title?.romaji?.trim() ||
+        media.title?.native?.trim() ||
+        `Anime ${media.id}`
+      result.push({
+        anilistId: media.id,
+        title,
+        coverImage: media.coverImage?.large ?? media.coverImage?.medium ?? null,
+        episodes: typeof media.episodes === "number" ? media.episodes : null,
+        nextEpisode:
+          typeof media.nextAiringEpisode?.episode === "number"
+            ? media.nextAiringEpisode.episode
+            : null,
+        progress: typeof entry?.progress === "number" ? entry.progress : 0,
+      })
+    }
+  }
+  return result
+}
+
 export async function fetchAnilistViewer(
   token: string,
   signal?: AbortSignal

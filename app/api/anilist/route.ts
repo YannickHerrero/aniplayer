@@ -42,12 +42,16 @@ export async function POST(request: NextRequest) {
 
   const responseBody = await response.text()
 
+  const outHeaders: Record<string, string> = {
+    "content-type": response.headers.get("content-type") ?? "application/json",
+  }
+  // Forward rate-limit info so the client can back off on 429.
+  const retryAfter = response.headers.get("retry-after")
+  if (retryAfter) outHeaders["retry-after"] = retryAfter
+
   return new NextResponse(responseBody, {
     status: response.status,
-    headers: {
-      "content-type":
-        response.headers.get("content-type") ?? "application/json",
-    },
+    headers: outHeaders,
   })
 }
 

@@ -147,6 +147,26 @@ const SAVE_PROGRESS_MUTATION = `
 
 const PREFERRED_TV_FORMATS = new Set(["TV", "TV_SHORT", "ONA"])
 
+const MAX_RATE_LIMIT_RETRIES = 2
+
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"))
+      return
+    }
+    const timer = setTimeout(resolve, ms)
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer)
+        reject(new DOMException("Aborted", "AbortError"))
+      },
+      { once: true }
+    )
+  })
+}
+
 /** Low-level GraphQL call through the local proxy (forwards token if present). */
 async function requestAnilist<T>({
   query,
@@ -157,29 +177,67 @@ async function requestAnilist<T>({
   const headers: Record<string, string> = { "content-type": "application/json" }
   if (token) headers["x-anilist-token"] = token
 
-  const response = await fetch("/api/anilist", {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ query, variables }),
-    signal,
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch("/api/anilist", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ query, variables }),
+      signal,
+    })
+
+    // Respect AniList's rate limit: wait Retry-After and retry a couple of times.
+    if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+      const retryAfter = Number(response.headers.get("retry-after"))
+      const waitMs = Math.min(
+        (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 5) * 1000,
+        30000
+      )
+      await sleep(waitMs, signal)
+      continue
+    }
+
+    if (!response.ok && response.status !== 200) {
+      throw new Error(`AniList request failed with status ${response.status}`)
+    }
+
+    const payload = (await response.json()) as {
+      data?: T
+      errors?: Array<{ message?: string }> | null
+    }
+
+    if (payload.errors?.length) {
+      throw new Error(
+        payload.errors[0]?.message ?? "AniList returned an error response."
+      )
+    }
+
+    return payload.data as T
+  }
+}
+
+// Short-lived in-memory cache for read queries so navigating between pages
+// doesn't refetch the same AniList data (and trip the rate limit).
+type CacheEntry = { at: number; value: Promise<unknown> }
+const readCache = new Map<string, CacheEntry>()
+
+function tokenTag(token?: string | null): string {
+  return token ? token.slice(-8) : "anon"
+}
+
+function withCache<T>(
+  key: string,
+  ttlMs: number,
+  loader: () => Promise<T>
+): Promise<T> {
+  const hit = readCache.get(key)
+  if (hit && Date.now() - hit.at < ttlMs) return hit.value as Promise<T>
+  // Don't cache failures, so a transient error can be retried immediately.
+  const value = loader().catch((err) => {
+    readCache.delete(key)
+    throw err
   })
-
-  if (!response.ok && response.status !== 200) {
-    throw new Error(`AniList request failed with status ${response.status}`)
-  }
-
-  const payload = (await response.json()) as {
-    data?: T
-    errors?: Array<{ message?: string }> | null
-  }
-
-  if (payload.errors?.length) {
-    throw new Error(
-      payload.errors[0]?.message ?? "AniList returned an error response."
-    )
-  }
-
-  return payload.data as T
+  readCache.set(key, { at: Date.now(), value })
+  return value as Promise<T>
 }
 
 export async function searchAnilistAnime(
@@ -246,49 +304,55 @@ const PROGRESS_BATCH_QUERY = `
 export async function fetchAnilistProgressBatch(
   ids: number[],
   token?: string | null,
-  signal?: AbortSignal
+  _signal?: AbortSignal
 ): Promise<AnilistProgressInfo[]> {
   const valid = Array.from(
     new Set(ids.filter((id) => Number.isInteger(id) && id > 0))
-  )
+  ).sort((a, b) => a - b)
   if (valid.length === 0) return []
 
-  // AniList returns at most one page (50) per query — chunk larger libraries.
-  const chunks: number[][] = []
-  for (let i = 0; i < valid.length; i += 50) {
-    chunks.push(valid.slice(i, i + 50))
-  }
+  return withCache(
+    `progress:${valid.join(",")}:${tokenTag(token)}`,
+    45_000,
+    async () => {
+      // AniList returns at most one page (50) per query — chunk larger libraries.
+      const chunks: number[][] = []
+      for (let i = 0; i < valid.length; i += 50) {
+        chunks.push(valid.slice(i, i + 50))
+      }
 
-  const pages = await Promise.all(
-    chunks.map((chunk) =>
-      requestAnilist<{
-        Page?: {
-          media?:
-            | Array<{
-                id: number
-                episodes?: number | null
-                nextAiringEpisode?: { episode?: number | null } | null
-                mediaListEntry?: { progress?: number | null } | null
-              }>
-            | null
-        } | null
-      }>({ query: PROGRESS_BATCH_QUERY, variables: { ids: chunk }, token, signal })
-    )
-  )
+      const pages = await Promise.all(
+        chunks.map((chunk) =>
+          requestAnilist<{
+            Page?: {
+              media?:
+                | Array<{
+                    id: number
+                    episodes?: number | null
+                    nextAiringEpisode?: { episode?: number | null } | null
+                    mediaListEntry?: { progress?: number | null } | null
+                  }>
+                | null
+            } | null
+          }>({ query: PROGRESS_BATCH_QUERY, variables: { ids: chunk }, token })
+        )
+      )
 
-  return pages.flatMap((data) =>
-    (data.Page?.media ?? []).map((m) => ({
-      id: m.id,
-      episodes: typeof m.episodes === "number" ? m.episodes : null,
-      progress:
-        typeof m.mediaListEntry?.progress === "number"
-          ? m.mediaListEntry.progress
-          : null,
-      nextEpisode:
-        typeof m.nextAiringEpisode?.episode === "number"
-          ? m.nextAiringEpisode.episode
-          : null,
-    }))
+      return pages.flatMap((data) =>
+        (data.Page?.media ?? []).map((m) => ({
+          id: m.id,
+          episodes: typeof m.episodes === "number" ? m.episodes : null,
+          progress:
+            typeof m.mediaListEntry?.progress === "number"
+              ? m.mediaListEntry.progress
+              : null,
+          nextEpisode:
+            typeof m.nextAiringEpisode?.episode === "number"
+              ? m.nextAiringEpisode.episode
+              : null,
+        }))
+      )
+    }
   )
 }
 
@@ -354,42 +418,49 @@ type WatchingEntryResponse = {
 export async function fetchAnilistWatchingList(
   userId: number,
   token: string,
-  signal?: AbortSignal
+  _signal?: AbortSignal
 ): Promise<AnilistWatchingEntry[]> {
   if (!Number.isInteger(userId) || userId <= 0) return []
 
-  const data = await requestAnilist<{
-    MediaListCollection?: {
-      lists?: Array<{ entries?: WatchingEntryResponse[] | null } | null> | null
-    } | null
-  }>({ query: WATCHING_LIST_QUERY, variables: { userId }, token, signal })
+  return withCache(
+    `watching:${userId}:${tokenTag(token)}`,
+    60_000,
+    async () => {
+      const data = await requestAnilist<{
+        MediaListCollection?: {
+          lists?: Array<{ entries?: WatchingEntryResponse[] | null } | null> | null
+        } | null
+      }>({ query: WATCHING_LIST_QUERY, variables: { userId }, token })
 
-  const seen = new Set<number>()
-  const result: AnilistWatchingEntry[] = []
-  for (const list of data.MediaListCollection?.lists ?? []) {
-    for (const entry of list?.entries ?? []) {
-      const media = entry?.media
-      if (!media || seen.has(media.id)) continue
-      seen.add(media.id)
-      const title =
-        media.title?.english?.trim() ||
-        media.title?.romaji?.trim() ||
-        media.title?.native?.trim() ||
-        `Anime ${media.id}`
-      result.push({
-        anilistId: media.id,
-        title,
-        coverImage: media.coverImage?.large ?? media.coverImage?.medium ?? null,
-        episodes: typeof media.episodes === "number" ? media.episodes : null,
-        nextEpisode:
-          typeof media.nextAiringEpisode?.episode === "number"
-            ? media.nextAiringEpisode.episode
-            : null,
-        progress: typeof entry?.progress === "number" ? entry.progress : 0,
-      })
+      const seen = new Set<number>()
+      const result: AnilistWatchingEntry[] = []
+      for (const list of data.MediaListCollection?.lists ?? []) {
+        for (const entry of list?.entries ?? []) {
+          const media = entry?.media
+          if (!media || seen.has(media.id)) continue
+          seen.add(media.id)
+          const title =
+            media.title?.english?.trim() ||
+            media.title?.romaji?.trim() ||
+            media.title?.native?.trim() ||
+            `Anime ${media.id}`
+          result.push({
+            anilistId: media.id,
+            title,
+            coverImage:
+              media.coverImage?.large ?? media.coverImage?.medium ?? null,
+            episodes: typeof media.episodes === "number" ? media.episodes : null,
+            nextEpisode:
+              typeof media.nextAiringEpisode?.episode === "number"
+                ? media.nextAiringEpisode.episode
+                : null,
+            progress: typeof entry?.progress === "number" ? entry.progress : 0,
+          })
+        }
+      }
+      return result
     }
-  }
-  return result
+  )
 }
 
 export type AnilistFavoriteEntry = {
@@ -446,61 +517,65 @@ type FavoriteNode = {
 export async function fetchAnilistFavorites(
   userId: number,
   token: string,
-  signal?: AbortSignal
+  _signal?: AbortSignal
 ): Promise<AnilistFavoriteEntry[]> {
   if (!Number.isInteger(userId) || userId <= 0) return []
 
-  const out: AnilistFavoriteEntry[] = []
-  const seen = new Set<number>()
-  let page = 1
-  // Bound the loop; few users have >250 favourites.
-  for (let i = 0; i < 6; i++) {
-    const data = await requestAnilist<{
-      User?: {
-        favourites?: {
-          anime?: {
-            pageInfo?: { hasNextPage?: boolean } | null
-            nodes?: FavoriteNode[] | null
+  return withCache(`fav:${userId}:${tokenTag(token)}`, 60_000, async () => {
+    const out: AnilistFavoriteEntry[] = []
+    const seen = new Set<number>()
+    let page = 1
+    // Bound the loop; few users have >250 favourites.
+    for (let i = 0; i < 6; i++) {
+      const data = await requestAnilist<{
+        User?: {
+          favourites?: {
+            anime?: {
+              pageInfo?: { hasNextPage?: boolean } | null
+              nodes?: FavoriteNode[] | null
+            } | null
           } | null
         } | null
-      } | null
-    }>({ query: FAVORITES_QUERY, variables: { userId, page }, token, signal })
+      }>({ query: FAVORITES_QUERY, variables: { userId, page }, token })
 
-    const anime = data.User?.favourites?.anime
-    for (const node of anime?.nodes ?? []) {
-      if (!node || seen.has(node.id)) continue
-      seen.add(node.id)
-      out.push({
-        anilistId: node.id,
-        title:
-          node.title?.english?.trim() ||
-          node.title?.romaji?.trim() ||
-          node.title?.native?.trim() ||
-          `Anime ${node.id}`,
-        coverImage: node.coverImage?.large ?? node.coverImage?.medium ?? null,
-        episodes: typeof node.episodes === "number" ? node.episodes : null,
-        nextEpisode:
-          typeof node.nextAiringEpisode?.episode === "number"
-            ? node.nextAiringEpisode.episode
-            : null,
-      })
+      const anime = data.User?.favourites?.anime
+      for (const node of anime?.nodes ?? []) {
+        if (!node || seen.has(node.id)) continue
+        seen.add(node.id)
+        out.push({
+          anilistId: node.id,
+          title:
+            node.title?.english?.trim() ||
+            node.title?.romaji?.trim() ||
+            node.title?.native?.trim() ||
+            `Anime ${node.id}`,
+          coverImage:
+            node.coverImage?.large ?? node.coverImage?.medium ?? null,
+          episodes: typeof node.episodes === "number" ? node.episodes : null,
+          nextEpisode:
+            typeof node.nextAiringEpisode?.episode === "number"
+              ? node.nextAiringEpisode.episode
+              : null,
+        })
+      }
+      if (!anime?.pageInfo?.hasNextPage) break
+      page++
     }
-    if (!anime?.pageInfo?.hasNextPage) break
-    page++
-  }
-  return out
+    return out
+  })
 }
 
 export async function fetchAnilistViewer(
   token: string,
-  signal?: AbortSignal
+  _signal?: AbortSignal
 ): Promise<AnilistViewer | null> {
-  const data = await requestAnilist<{ Viewer?: AnilistViewer | null }>({
-    query: VIEWER_QUERY,
-    signal,
-    token,
+  return withCache(`viewer:${tokenTag(token)}`, 5 * 60_000, async () => {
+    const data = await requestAnilist<{ Viewer?: AnilistViewer | null }>({
+      query: VIEWER_QUERY,
+      token,
+    })
+    return data.Viewer ?? null
   })
-  return data.Viewer ?? null
 }
 
 /**

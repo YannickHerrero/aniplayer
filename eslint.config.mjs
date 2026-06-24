@@ -11,6 +11,11 @@ const eslintConfig = defineConfig([
       // data) and fragment parsing on mount; this rule flags the synchronous
       // setState that starts those, which is intentional here.
       "react-hooks/set-state-in-effect": "off",
+      // Allow intentionally-unused args/vars prefixed with `_`.
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
     },
   },
   // Override default ignores of eslint-config-next.

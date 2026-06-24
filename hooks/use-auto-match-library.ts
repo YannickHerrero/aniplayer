@@ -6,7 +6,8 @@ import type { AnilistMedia } from "@/lib/anilist"
 import { autoMatchAnime } from "@/lib/auto-match"
 import type { AnimeFolder, FolderMapping, MappingsFile } from "@/lib/types"
 
-const THROTTLE_MS = 350
+// AniList allows ~30 requests/minute, so keep auto-match well under that.
+const THROTTLE_MS = 2500
 
 type Options = {
   folders: AnimeFolder[]

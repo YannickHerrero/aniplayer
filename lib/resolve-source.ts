@@ -18,6 +18,7 @@ export type ResolveResult =
 export async function resolveBestSource(
   slug: string,
   episode: number,
+  realDebridKey: string,
   signal?: AbortSignal
 ): Promise<ResolveResult> {
   const mapping = await getMapping(slug)
@@ -26,7 +27,12 @@ export async function resolveBestSource(
   const kitsuId = await getKitsuId(mapping.anilistId)
   if (kitsuId == null) return { status: "unmappable" }
 
-  const sources = await fetchTorrentioSources({ kitsuId, episode, signal })
+  const sources = await fetchTorrentioSources({
+    kitsuId,
+    episode,
+    realDebridKey,
+    signal,
+  })
   const best = pickBestSource(sources)
   if (!best) return { status: "no-source" }
 

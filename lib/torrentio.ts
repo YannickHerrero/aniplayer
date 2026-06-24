@@ -48,29 +48,34 @@ type TorrentioStreamResponse = {
 
 type TorrentioResponse = { streams?: TorrentioStreamResponse[] }
 
-// No realdebrid in the config: a public query returns infoHash + fileIdx for
-// every source, which we then drive through Real-Debrid ourselves (add-magnet).
-function buildConfig(): string {
+// Query with the Real-Debrid key + nodownloadlinks: Torrentio returns only
+// RD-cached sources, each as a ready-to-stream URL. (Real-Debrid blocks adding
+// new/uncached magnets, so only already-cached content is downloadable.)
+function buildConfig(realDebridKey: string): string {
   return [
     `providers=${PROVIDERS.join(",")}`,
     "sort=qualitysize",
     "qualityfilter=scr,cam",
+    "debridoptions=nodownloadlinks",
+    `realdebrid=${realDebridKey}`,
   ].join("|")
 }
 
-/** Fetch + score sources for one episode (or a movie when episode is null). */
+/** Fetch + score cached sources for one episode (or a movie when episode null). */
 export async function fetchTorrentioSources({
   kitsuId,
   episode,
+  realDebridKey,
   signal,
 }: {
   kitsuId: number
   episode: number | null
+  realDebridKey: string
   signal?: AbortSignal
 }): Promise<TorrentioSource[]> {
   const id = episode != null ? `kitsu:${kitsuId}:${episode}` : `kitsu:${kitsuId}`
   const kind = episode != null ? "series" : "movie"
-  const url = `${TORRENTIO_BASE_URL}/${buildConfig()}/stream/${kind}/${id}.json`
+  const url = `${TORRENTIO_BASE_URL}/${buildConfig(realDebridKey)}/stream/${kind}/${id}.json`
 
   const response = await fetch(url, { cache: "no-store", signal })
   if (!response.ok) {
@@ -84,37 +89,16 @@ export async function fetchTorrentioSources({
   return sources.sort((a, b) => b.score - a.score)
 }
 
-/** First cached source with a directly downloadable URL, or null. */
-export function pickBestCachedSource(
-  sources: TorrentioSource[]
-): TorrentioSource | null {
-  return sources.find((s) => s.isCached && s.url) ?? null
-}
-
 /**
- * Best source overall (already sorted by score): a cached one with a direct
- * URL if available, otherwise the top torrent that has an infoHash to add to
- * Real-Debrid. Null only when nothing usable came back.
+ * Best downloadable source: the highest-scored one that came back with a
+ * direct URL (Torrentio only returns URLs for RD-available/cached content).
  */
 export function pickBestSource(
   sources: TorrentioSource[]
 ): TorrentioSource | null {
-  const cached = sources.find((s) => s.isCached && s.url)
-  if (cached) return cached
-  return sources.find((s) => s.infoHash) ?? null
+  return sources.find((s) => s.url) ?? null
 }
 
-/** Build a magnet URI from an infoHash + trackers. */
-export function buildMagnet(source: TorrentioSource): string | null {
-  if (!source.infoHash) return null
-  const name = source.filename ?? source.title
-  const params = [`xt=urn:btih:${source.infoHash}`]
-  if (name) params.push(`dn=${encodeURIComponent(name)}`)
-  for (const tracker of source.trackers) {
-    params.push(`tr=${encodeURIComponent(tracker)}`)
-  }
-  return `magnet:?${params.join("&")}`
-}
 
 function normalizeSource(
   source: TorrentioStreamResponse,
@@ -139,7 +123,8 @@ function normalizeSource(
   const sizeBytes = parseSizeBytes(sizeMatch?.[1] ?? null)
   const quality = qualityMatch?.[1]?.toUpperCase() ?? null
   const seeders = seedersMatch ? Number(seedersMatch[1]) : null
-  const isCached = title.includes("[RD+") || title.includes("[⚡]")
+  // Torrentio only returns a URL for RD-available content, so a URL means cached.
+  const isCached = Boolean(source.url)
 
   return {
     id: `${provider}-${source.infoHash ?? source.url ?? index}`,

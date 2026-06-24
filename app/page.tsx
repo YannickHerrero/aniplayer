@@ -10,17 +10,30 @@ import {
 import { LibraryHeader } from "@/components/app/library-header"
 import { Sidebar } from "@/components/app/sidebar"
 import { useAnilistAuth } from "@/hooks/use-anilist-auth"
+import { useAnilistProgress } from "@/hooks/use-anilist-progress"
 import { useAutoMatchLibrary } from "@/hooks/use-auto-match-library"
 import { useLibrary } from "@/hooks/use-library"
 import { useMappings } from "@/hooks/use-mappings"
 import { useWatched } from "@/hooks/use-watched"
+import { effectiveWatchedSet, totalEpisodes } from "@/lib/watched"
 
 export default function LibraryPage() {
   const { folders, loading, error } = useLibrary()
   const { mappings, loading: mappingsLoading, saveMapping } = useMappings()
   const { watchedMap } = useWatched()
-  const { token } = useAnilistAuth()
+  const { token, connected } = useAnilistAuth()
   const [query, setQuery] = useState("")
+
+  // AniList progress for every mapped anime, so "Continue watching" reflects
+  // progress tracked on AniList (not just locally marked episodes).
+  const mappedIds = useMemo(
+    () =>
+      folders
+        .map((f) => mappings[f.slug]?.anilistId)
+        .filter((id): id is number => typeof id === "number"),
+    [folders, mappings]
+  )
+  const progressById = useAnilistProgress(mappedIds, connected ? token : null)
 
   // Match unmapped folders to AniList in the background so covers show up
   // without having to open each detail page first.
@@ -38,29 +51,42 @@ export default function LibraryPage() {
     return folders.filter((f) => f.folderName.toLowerCase().includes(q))
   }, [folders, query])
 
-  // In-progress anime: some episodes watched, but not all.
+  // In-progress anime: started, with a next episode still available on disk.
   const continueWatching = useMemo<ContinueWatchingItem[]>(() => {
     return folders.flatMap((folder) => {
-      const watched = watchedMap[folder.slug] ?? []
-      if (watched.length === 0 || watched.length >= folder.episodeCount) {
-        return []
-      }
-      const upNext =
-        folder.episodes.find(
-          (ep) => ep.episode != null && !watched.includes(ep.episode)
-        )?.episode ?? 0
       const mapping = mappings[folder.slug]
+      const info = mapping ? progressById.get(mapping.anilistId) : undefined
+
+      // Local marks merged with AniList progress (same as the detail page).
+      const watchedSet = effectiveWatchedSet(
+        watchedMap[folder.slug] ?? [],
+        info?.progress ?? null
+      )
+      if (watchedSet.size === 0) return []
+
+      // The next episode that's actually on disk and not yet watched.
+      const next = folder.episodes.find(
+        (ep) => ep.episode != null && !watchedSet.has(ep.episode)
+      )
+      if (!next || next.episode == null) return []
+
+      const total = totalEpisodes(
+        info?.episodes ?? null,
+        info?.nextEpisode ?? null,
+        folder.episodeCount
+      )
       return [
         {
           slug: folder.slug,
           title: mapping?.title || folder.folderName,
           coverImage: mapping?.coverImage ?? null,
-          upNext,
-          progressPct: (watched.length / folder.episodeCount) * 100,
+          upNext: next.episode,
+          progressPct:
+            total > 0 ? Math.min(100, (watchedSet.size / total) * 100) : 0,
         },
       ]
     })
-  }, [folders, watchedMap, mappings])
+  }, [folders, watchedMap, mappings, progressById])
 
   return (
     <div className="flex h-screen overflow-hidden">

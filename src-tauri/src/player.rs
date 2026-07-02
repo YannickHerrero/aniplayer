@@ -321,9 +321,8 @@ fn tracks_equal(a: &PlayerTracks, b: &PlayerTracks) -> bool {
 #[cfg(target_os = "macos")]
 fn get_wid(window: &Window) -> Result<i64, String> {
     use raw_window_handle::RawWindowHandle;
-    let handle = window.window_handle().map_err(to_string)?;
-    let raw = handle.as_raw();
-    match raw {
+    let handle = window.raw_window_handle().map_err(to_string)?;
+    match handle {
         RawWindowHandle::AppKit(h) => Ok(h.ns_view.as_ptr() as i64),
         _ => Err("Expected AppKit window handle".into()),
     }
@@ -332,9 +331,8 @@ fn get_wid(window: &Window) -> Result<i64, String> {
 #[cfg(target_os = "windows")]
 fn get_wid(window: &Window) -> Result<i64, String> {
     use raw_window_handle::RawWindowHandle;
-    let handle = window.window_handle().map_err(to_string)?;
-    let raw = handle.as_raw();
-    match raw {
+    let handle = window.raw_window_handle().map_err(to_string)?;
+    match handle {
         RawWindowHandle::Win32(h) => {
             let hwnd: isize = h.hwnd.into();
             Ok(hwnd as i64)

@@ -1,9 +1,7 @@
 use libmpv::{FileState, Mpv};
-use raw_window_handle::HasWindowHandle;
 use serde::Serialize;
 use std::{
     fs,
-    path::Path,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -11,7 +9,7 @@ use std::{
     thread,
     time::Duration,
 };
-use tauri::{Emitter, Manager, Window};
+use tauri::{Emitter, Window};
 
 use crate::{decode_slug, get_library_root, is_safe_segment, is_video_file, now_iso, to_string};
 
@@ -19,9 +17,7 @@ pub type SharedPlayer = Arc<std::sync::Mutex<Option<PlayerState>>>;
 
 pub struct PlayerState {
     pub mpv: Arc<Mpv>,
-    pub slug: String,
-    pub episode: u32,
-    running: Arc<AtomicBool>,
+    pub running: Arc<AtomicBool>,
 }
 
 #[derive(Clone, Serialize)]
@@ -53,7 +49,7 @@ pub fn player_open(
     state: tauri::State<'_, SharedPlayer>,
     slug: String,
     file_name: String,
-    episode: u32,
+    _episode: u32,
 ) -> Result<(), String> {
     let folder_name = decode_slug(&slug);
     if !is_safe_segment(&folder_name) || !is_safe_segment(&file_name) || !is_video_file(&file_name)
@@ -94,8 +90,6 @@ pub fn player_open(
     if let Ok(mut guard) = state.lock() {
         *guard = Some(PlayerState {
             mpv,
-            slug,
-            episode,
             running,
         });
     }

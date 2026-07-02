@@ -14,6 +14,7 @@ use std::{
     path::{Path, PathBuf},
     sync::{Mutex, OnceLock},
 };
+use tauri::Manager;
 
 const DEFAULT_LIBRARY: &str = "~/Downloads/anime";
 const DEFAULT_DATA_DIR: &str = "./.data";
@@ -167,6 +168,7 @@ struct OrganizeResponse {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 struct TorrentioSource {
     title: String,
     filename: Option<String>,
@@ -298,7 +300,7 @@ fn create_library_entry(
     anilist_id: u32,
     cover_image: Option<String>,
 ) -> Result<Value, String> {
-    let mut mappings = read_json_store::<HashMap<String, FolderMapping>>(MAPPINGS_FILE, {})?;
+    let mut mappings = read_json_store::<HashMap<String, FolderMapping>>(MAPPINGS_FILE)?;
     if let Some((slug, _)) = mappings
         .iter()
         .find(|(_, mapping)| mapping.anilist_id == anilist_id)
@@ -329,7 +331,7 @@ fn create_library_entry(
 #[tauri::command]
 fn get_mappings() -> Result<MappingsResponse, String> {
     Ok(MappingsResponse {
-        mappings: read_json_store(MAPPINGS_FILE, {})?,
+        mappings: read_json_store(MAPPINGS_FILE)?,
     })
 }
 
@@ -340,7 +342,7 @@ fn set_mapping_cmd(
     title: String,
     cover_image: Option<String>,
 ) -> Result<FolderMapping, String> {
-    let mut mappings = read_json_store::<HashMap<String, FolderMapping>>(MAPPINGS_FILE, {})?;
+    let mut mappings = read_json_store::<HashMap<String, FolderMapping>>(MAPPINGS_FILE)?;
     let mapping = FolderMapping {
         anilist_id,
         title,
@@ -354,7 +356,7 @@ fn set_mapping_cmd(
 
 #[tauri::command]
 fn delete_mapping_cmd(slug: String) -> Result<(), String> {
-    let mut mappings = read_json_store::<HashMap<String, FolderMapping>>(MAPPINGS_FILE, {})?;
+    let mut mappings = read_json_store::<HashMap<String, FolderMapping>>(MAPPINGS_FILE)?;
     mappings.remove(&slug);
     write_json_store(MAPPINGS_FILE, &mappings)
 }
@@ -362,13 +364,13 @@ fn delete_mapping_cmd(slug: String) -> Result<(), String> {
 #[tauri::command]
 fn get_watched_all() -> Result<WatchedResponse, String> {
     Ok(WatchedResponse {
-        watched: read_json_store(WATCHED_FILE, {})?,
+        watched: read_json_store(WATCHED_FILE)?,
     })
 }
 
 #[tauri::command]
 fn set_watched_cmd(slug: String, episode: u32, watched: bool) -> Result<Vec<u32>, String> {
-    let mut all = read_json_store::<HashMap<String, WatchedEntry>>(WATCHED_FILE, {})?;
+    let mut all = read_json_store::<HashMap<String, WatchedEntry>>(WATCHED_FILE)?;
     let mut set: HashSet<u32> = all
         .get(&slug)
         .map(|entry| entry.watched.iter().copied().collect())
@@ -492,7 +494,7 @@ async fn validate_realdebrid_key(api_key: String) -> Result<Value, String> {
 
 #[tauri::command]
 async fn is_mappable(slug: String) -> Result<bool, String> {
-    let mappings = read_json_store::<HashMap<String, FolderMapping>>(MAPPINGS_FILE, {})?;
+    let mappings = read_json_store::<HashMap<String, FolderMapping>>(MAPPINGS_FILE)?;
     let Some(mapping) = mappings.get(&slug) else {
         return Ok(false);
     };
@@ -606,7 +608,7 @@ async fn resolve_best_source(
     episode: u32,
     real_debrid_key: &str,
 ) -> Result<TorrentioSource, String> {
-    let mappings = read_json_store::<HashMap<String, FolderMapping>>(MAPPINGS_FILE, {})?;
+    let mappings = read_json_store::<HashMap<String, FolderMapping>>(MAPPINGS_FILE)?;
     let mapping = mappings.get(slug).ok_or("Title not mappable")?;
     let kitsu_id = get_kitsu_id(mapping.anilist_id)
         .await?
@@ -715,7 +717,7 @@ async fn get_kitsu_id(anilist_id: u32) -> Result<Option<u32>, String> {
         return Ok(map.get(&anilist_id.to_string()).copied());
     }
 
-    let stored = read_json_store::<Value>(KITSU_MAP_FILE, json!(null)).unwrap_or(Value::Null);
+    let stored = read_json_store::<Value>(KITSU_MAP_FILE).unwrap_or_default();
     if let Some(map) = stored.get("map").and_then(Value::as_object) {
         let parsed = map
             .iter()
@@ -979,11 +981,10 @@ fn write_runtime_config(config: &RuntimeConfig) -> Result<(), String> {
     write_json_path(&config_path(), config)
 }
 
-fn read_json_store<T: for<'de> Deserialize<'de>>(
+fn read_json_store<T: Default + for<'de> Deserialize<'de>>(
     file_name: &str,
-    fallback: T,
 ) -> Result<T, String> {
-    Ok(read_json_path(&Path::new(&get_data_dir()).join(file_name)).unwrap_or(fallback))
+    Ok(read_json_path(&Path::new(&get_data_dir()).join(file_name)).unwrap_or_default())
 }
 
 fn write_json_store<T: Serialize>(file_name: &str, data: &T) -> Result<(), String> {
@@ -1010,7 +1011,7 @@ fn hydrate_downloads() -> Result<(), String> {
         return Ok(());
     }
     let stored =
-        read_json_store::<HashMap<String, HashMap<String, DownloadEntry>>>(DOWNLOADS_FILE, {})?;
+        read_json_store::<HashMap<String, HashMap<String, DownloadEntry>>>(DOWNLOADS_FILE)?;
     for by_episode in stored.values() {
         for entry in by_episode.values() {
             registry.insert(download_key(&entry.slug, entry.episode), entry.clone());
@@ -1027,7 +1028,7 @@ fn save_download(entry: DownloadEntry, persist: bool) -> Result<(), String> {
         .insert(download_key(&entry.slug, entry.episode), entry.clone());
     if persist {
         let mut all =
-            read_json_store::<HashMap<String, HashMap<String, DownloadEntry>>>(DOWNLOADS_FILE, {})?;
+            read_json_store::<HashMap<String, HashMap<String, DownloadEntry>>>(DOWNLOADS_FILE)?;
         all.entry(entry.slug.clone())
             .or_default()
             .insert(entry.episode.to_string(), entry);

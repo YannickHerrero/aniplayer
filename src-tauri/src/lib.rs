@@ -1,5 +1,8 @@
+mod player;
+
 use chrono::Utc;
 use futures_util::StreamExt;
+use player::SharedPlayer;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -9,7 +12,6 @@ use std::{
     fs::{self, File},
     io::Write,
     path::{Path, PathBuf},
-    process::Command,
     sync::{Mutex, OnceLock},
 };
 
@@ -182,6 +184,8 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
+            app.manage(SharedPlayer::default());
+
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -202,7 +206,6 @@ pub fn run() {
             delete_mapping_cmd,
             get_watched_all,
             set_watched_cmd,
-            play_episode_cmd,
             get_organize,
             move_organize,
             anilist_graphql,
@@ -211,6 +214,16 @@ pub fn run() {
             is_mappable,
             get_download_cmd,
             start_download_cmd,
+            player::player_open,
+            player::player_play_pause,
+            player::player_seek,
+            player::player_seek_relative,
+            player::player_set_audio_track,
+            player::player_set_subtitle_track,
+            player::player_get_tracks,
+            player::player_set_volume,
+            player::player_toggle_fullscreen,
+            player::player_close,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -376,48 +389,6 @@ fn set_watched_cmd(slug: String, episode: u32, watched: bool) -> Result<Vec<u32>
     );
     write_json_store(WATCHED_FILE, &all)?;
     Ok(list)
-}
-
-#[tauri::command]
-fn play_episode_cmd(slug: String, file_name: String) -> Result<(), String> {
-    if !is_safe_segment(&decode_slug(&slug))
-        || !is_safe_segment(&file_name)
-        || !is_video_file(&file_name)
-    {
-        return Err("Invalid episode path".into());
-    }
-    let root = fs::canonicalize(get_library_root()).map_err(|_| "Library not found".to_string())?;
-    let target = fs::canonicalize(root.join(decode_slug(&slug)).join(file_name))
-        .map_err(|_| "File not found".to_string())?;
-    if !target.starts_with(&root) || !target.is_file() {
-        return Err("Path escapes library root".into());
-    }
-
-    let configured = first_configured(&[
-        env::var("VLC_PATH").ok(),
-        read_runtime_config().vlc_path.clone(),
-    ]);
-    let mut command = configured.unwrap_or_else(default_vlc_binary);
-    let mut args = vec![target.to_string_lossy().to_string()];
-
-    if Path::new(&command).is_absolute() && !Path::new(&command).exists() {
-        if cfg!(target_os = "macos") {
-            command = "open".into();
-            args = vec![
-                "-a".into(),
-                "VLC".into(),
-                target.to_string_lossy().to_string(),
-            ];
-        } else {
-            return Err("VLC binary not found".into());
-        }
-    }
-
-    Command::new(command)
-        .args(args)
-        .spawn()
-        .map_err(to_string)?;
-    Ok(())
 }
 
 #[tauri::command]
@@ -1107,7 +1078,7 @@ fn fail_download(key: &str, message: String) -> Result<(), String> {
     save_download(entry, true)
 }
 
-fn get_library_root() -> String {
+pub fn get_library_root() -> String {
     let config = read_runtime_config();
     resolve_path(
         first_configured(&[
@@ -1220,7 +1191,7 @@ fn sanitize_folder_name(title: &str) -> String {
         .to_string()
 }
 
-fn is_safe_segment(segment: &str) -> bool {
+pub fn is_safe_segment(segment: &str) -> bool {
     !segment.is_empty()
         && !segment.contains('/')
         && !segment.contains('\\')
@@ -1233,13 +1204,13 @@ fn folder_to_slug(folder_name: &str) -> String {
     urlencoding::encode(folder_name).to_string()
 }
 
-fn decode_slug(slug: &str) -> String {
+pub fn decode_slug(slug: &str) -> String {
     urlencoding::decode(slug)
         .map(|value| value.to_string())
         .unwrap_or_else(|_| slug.to_string())
 }
 
-fn is_video_file(file_name: &str) -> bool {
+pub fn is_video_file(file_name: &str) -> bool {
     Path::new(file_name)
         .extension()
         .and_then(|ext| ext.to_str())
@@ -1250,16 +1221,6 @@ fn is_video_file(file_name: &str) -> bool {
             )
         })
         .unwrap_or(false)
-}
-
-fn default_vlc_binary() -> String {
-    if cfg!(target_os = "macos") {
-        "/Applications/VLC.app/Contents/MacOS/VLC".into()
-    } else if cfg!(target_os = "windows") {
-        "vlc.exe".into()
-    } else {
-        "vlc".into()
-    }
 }
 
 fn parse_size_bytes(title: &str) -> u64 {
@@ -1281,10 +1242,10 @@ fn download_key(slug: &str, episode: u32) -> String {
     format!("{slug}:{episode}")
 }
 
-fn now_iso() -> String {
+pub fn now_iso() -> String {
     Utc::now().to_rfc3339()
 }
 
-fn to_string(err: impl std::fmt::Display) -> String {
+pub fn to_string(err: impl std::fmt::Display) -> String {
     err.to_string()
 }

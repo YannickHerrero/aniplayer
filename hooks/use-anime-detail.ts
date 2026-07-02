@@ -11,7 +11,7 @@ import { useRealDebrid } from "@/hooks/use-realdebrid"
 import { useWatched } from "@/hooks/use-watched"
 import { type AnilistMedia, saveAnilistProgress } from "@/lib/anilist"
 import { autoMatchAnime } from "@/lib/auto-match"
-import { isMappable, playEpisode as playEpisodeNative } from "@/lib/backend"
+import { isMappable } from "@/lib/backend"
 import { type EpisodeView, buildEpisodeModel } from "@/lib/episode-model"
 import type { AnimeFolder } from "@/lib/types"
 import { effectiveWatchedSet, maxWatched, totalEpisodes } from "@/lib/watched"
@@ -144,16 +144,6 @@ export function useAnimeDetail(slug: string): AnimeDetail {
       (ep) => ep.episode != null && !watchedSet.has(ep.episode)
     ) ?? folder?.episodes[0]
 
-  const playEpisode = (fileName: string) => {
-    void (async () => {
-      try {
-        await playEpisodeNative({ slug, fileName })
-      } catch (err) {
-        setToast({ message: `Couldn't play: ${(err as Error).message}`, tone: "error" })
-      }
-    })()
-  }
-
   const toggleWatched = (episode: number) => {
     void (async () => {
       const nowWatched = !watchedSet.has(episode)
@@ -194,7 +184,7 @@ export function useAnimeDetail(slug: string): AnimeDetail {
     pendingEpisodes,
     downloadPendingEpisodes: startingEpisodes,
     noSourceEpisodes,
-    playEpisode,
+    playEpisode: () => {},
     toggleWatched,
     startDownload,
     saveMapping,

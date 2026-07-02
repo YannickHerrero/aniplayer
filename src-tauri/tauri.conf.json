@@ -4,16 +4,15 @@
   "version": "0.1.0",
   "identifier": "dev.yannick.aniplayer",
   "build": {
-    "frontendDist": "resources/next-server",
+    "frontendDist": "../dist",
     "devUrl": "http://127.0.0.1:39847",
     "beforeDevCommand": "pnpm dev:desktop",
-    "beforeBuildCommand": "pnpm desktop:prepare"
+    "beforeBuildCommand": "pnpm build"
   },
   "app": {
     "windows": [
       {
         "title": "Aniplayer",
-        "url": "http://127.0.0.1:39847",
         "width": 1280,
         "height": 820,
         "resizable": true,
@@ -27,8 +26,6 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "externalBin": ["binaries/node"],
-    "resources": ["resources/next-server"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

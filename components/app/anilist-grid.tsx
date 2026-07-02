@@ -1,10 +1,11 @@
 "use client"
 
-import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { AppImage as Image } from "@/components/app/app-image"
+import { useRouter } from "@/lib/navigation"
 import { useState } from "react"
 import { Loader2 } from "lucide-react"
 
+import { createLibraryEntry } from "@/lib/backend"
 import { gradientFor } from "@/lib/gradient"
 
 export type AniListItem = {
@@ -53,27 +54,14 @@ function AniListCard({
     if (busy) return
     setBusy(true)
     try {
-      const res = await fetch("/api/library", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          title: item.title,
-          anilistId: item.anilistId,
-          coverImage: item.coverImage,
-        }),
+      const data = await createLibraryEntry({
+        title: item.title,
+        anilistId: item.anilistId,
+        coverImage: item.coverImage,
       })
-      const data = (await res.json().catch(() => ({}))) as {
-        slug?: string
-        error?: string
-      }
-      if (!res.ok || !data.slug) {
-        onError?.(data.error ?? "Couldn't add this show")
-        setBusy(false)
-        return
-      }
       router.push(`/anime/${encodeURIComponent(data.slug)}`)
-    } catch {
-      onError?.("Couldn't add this show")
+    } catch (err) {
+      onError?.((err as Error).message || "Couldn't add this show")
       setBusy(false)
     }
   }

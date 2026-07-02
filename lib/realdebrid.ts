@@ -17,16 +17,10 @@ export async function validateRealDebridKey(
   apiKey: string,
   signal?: AbortSignal
 ): Promise<RealDebridUser> {
-  const response = await fetch("/api/realdebrid/user", {
-    headers: { "x-realdebrid-key": apiKey },
-    signal,
-  })
-
-  if (!response.ok) {
-    throw new Error(`Real-Debrid validation failed (${response.status})`)
-  }
-
-  const payload = (await response.json()) as RealDebridUserResponse
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError")
+  const payload = (await validateRealDebridKeyNative(
+    apiKey
+  )) as RealDebridUserResponse
 
   if (!payload.username?.trim()) {
     throw new Error("Real-Debrid response is missing a username")
@@ -39,3 +33,4 @@ export async function validateRealDebridKey(
     expiration: payload.expiration?.trim() || null,
   }
 }
+import { validateRealDebridKeyNative } from "@/lib/backend"

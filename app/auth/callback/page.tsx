@@ -1,17 +1,20 @@
 "use client"
 
-import Link from "next/link"
-import { useRouter } from "next/navigation"
+import Link from "@/components/app/link"
+import { useRouter } from "@/lib/navigation"
+import { useLocation } from "react-router-dom"
 import { useEffect, useState } from "react"
 
+import { exchangeAnilistCode } from "@/lib/backend"
 import { makeStoredToken, storeToken } from "@/lib/anilist-auth"
 
 export default function AuthCallbackPage() {
   const router = useRouter()
+  const location = useLocation()
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
+    const params = new URLSearchParams(location.search || window.location.search)
     const code = params.get("code")
     const oauthError = params.get("error")
 
@@ -27,21 +30,8 @@ export default function AuthCallbackPage() {
     const controller = new AbortController()
     ;(async () => {
       try {
-        const res = await fetch("/api/auth/anilist", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ code }),
-          signal: controller.signal,
-        })
-        const data = (await res.json().catch(() => ({}))) as {
-          accessToken?: string
-          expiresIn?: number | null
-          error?: string
-        }
-        if (!res.ok || !data.accessToken) {
-          setError(data.error ?? "Failed to connect to AniList.")
-          return
-        }
+        if (controller.signal.aborted) return
+        const data = await exchangeAnilistCode(code)
         storeToken(makeStoredToken(data.accessToken, data.expiresIn))
         router.replace("/")
       } catch (err) {
@@ -50,7 +40,7 @@ export default function AuthCallbackPage() {
       }
     })()
     return () => controller.abort()
-  }, [router])
+  }, [location.search, router])
 
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-3 px-6 text-center">

@@ -11,6 +11,7 @@ import { useRealDebrid } from "@/hooks/use-realdebrid"
 import { useWatched } from "@/hooks/use-watched"
 import { type AnilistMedia, saveAnilistProgress } from "@/lib/anilist"
 import { autoMatchAnime } from "@/lib/auto-match"
+import { isMappable, playEpisode as playEpisodeNative } from "@/lib/backend"
 import { type EpisodeView, buildEpisodeModel } from "@/lib/episode-model"
 import type { AnimeFolder } from "@/lib/types"
 import { effectiveWatchedSet, maxWatched, totalEpisodes } from "@/lib/watched"
@@ -81,11 +82,10 @@ export function useAnimeDetail(slug: string): AnimeDetail {
       return
     }
     const controller = new AbortController()
-    fetch(`/api/mappable?slug=${encodeURIComponent(slug)}`, {
-      signal: controller.signal,
-    })
-      .then((res) => res.json())
-      .then((data: { mappable?: boolean }) => setMappable(Boolean(data.mappable)))
+    isMappable(slug)
+      .then((mappable) => {
+        if (!controller.signal.aborted) setMappable(mappable)
+      })
       .catch(() => {})
     return () => controller.abort()
   }, [rdConfigured, mapping?.anilistId, slug])
@@ -147,20 +147,9 @@ export function useAnimeDetail(slug: string): AnimeDetail {
   const playEpisode = (fileName: string) => {
     void (async () => {
       try {
-        const res = await fetch("/api/play", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ slug, fileName }),
-        })
-        if (!res.ok) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string }
-          setToast({
-            message: `Couldn't play: ${data.error ?? res.status}`,
-            tone: "error",
-          })
-        }
-      } catch {
-        setToast({ message: "Couldn't reach VLC.", tone: "error" })
+        await playEpisodeNative({ slug, fileName })
+      } catch (err) {
+        setToast({ message: `Couldn't play: ${(err as Error).message}`, tone: "error" })
       }
     })()
   }

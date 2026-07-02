@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/app/link"
 import { ArrowLeft } from "lucide-react"
 import { useEffect, useState } from "react"
 
@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useDetailLayout } from "@/hooks/use-detail-layout"
 import { useRealDebrid } from "@/hooks/use-realdebrid"
+import { getConfig, patchConfig, type RuntimeConfig } from "@/lib/backend"
 import { DETAIL_LAYOUTS } from "@/lib/detail-layout"
-import type { RuntimeConfig } from "@/lib/app-config"
 import { type RealDebridUser, validateRealDebridKey } from "@/lib/realdebrid"
 import { cn } from "@/lib/utils"
 
@@ -32,12 +32,8 @@ export default function SettingsPage() {
     const controller = new AbortController()
     ;(async () => {
       try {
-        const res = await fetch("/api/config", { signal: controller.signal })
-        if (!res.ok) return
-        const data = (await res.json()) as {
-          config?: RuntimeConfig
-          anilistClientSecretConfigured?: boolean
-        }
+        if (controller.signal.aborted) return
+        const data = await getConfig()
         setDesktopConfig(data.config ?? {})
         setSecretConfigured(Boolean(data.anilistClientSecretConfigured))
       } catch (err) {
@@ -84,14 +80,8 @@ export default function SettingsPage() {
       if (desktopConfig.anilistClientSecret?.trim()) {
         patch.anilistClientSecret = desktopConfig.anilistClientSecret.trim()
       }
-      const res = await fetch("/api/config", {
-        method: "PATCH",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(patch),
-      })
-      if (!res.ok) throw new Error("Failed to save config")
-      const data = (await res.json()) as { config?: RuntimeConfig }
-      setDesktopConfig(data.config ?? {})
+      const config = await patchConfig(patch)
+      setDesktopConfig(config)
       setSecretConfigured(Boolean(patch.anilistClientSecret) || secretConfigured)
       setConfigStatus("saved")
     } catch {

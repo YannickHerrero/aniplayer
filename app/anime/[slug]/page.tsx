@@ -1,7 +1,7 @@
 "use client"
 
-import Link from "next/link"
-import { useParams } from "next/navigation"
+import Link from "@/components/app/link"
+import { useParams } from "@/lib/navigation"
 
 import { AnilistTrackingPanel } from "@/components/app/anilist-tracking-panel"
 import { DetailHero } from "@/components/app/detail-hero"

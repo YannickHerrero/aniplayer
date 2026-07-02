@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+import { scanLibrary } from "@/lib/backend"
 import type { AnimeFolder } from "@/lib/types"
 
 type LibraryResponse = {
@@ -27,9 +28,8 @@ export function useLibrary(): UseLibraryResult {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch("/api/library", { signal })
-      if (!res.ok) throw new Error(`Library scan failed (${res.status})`)
-      const data = (await res.json()) as LibraryResponse
+      if (signal?.aborted) return
+      const data = (await scanLibrary()) as LibraryResponse
       setRoot(data.root)
       setFolders(data.folders)
     } catch (err) {

@@ -13,22 +13,16 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
+    "types": ["vite/client"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["./*"]
     }
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts"
-  ],
-  "exclude": ["node_modules", "src-tauri/resources", "src-tauri/binaries"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "app/**/*.tsx", "components/**/*.tsx", "hooks/**/*.ts", "lib/**/*.ts", "vite.config.ts"],
+  "exclude": [
+    "node_modules",
+    "app/api",
+    "src-tauri/target"
+  ]
 }

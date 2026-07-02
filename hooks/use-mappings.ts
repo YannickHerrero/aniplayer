@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react"
 
 import type { AnilistMedia } from "@/lib/anilist"
+import { deleteMapping, getMappings, setMapping } from "@/lib/backend"
 import type { FolderMapping, MappingsFile } from "@/lib/types"
 
 type UseMappingsResult = {
@@ -20,9 +21,8 @@ export function useMappings(): UseMappingsResult {
   const load = useCallback(async (signal?: AbortSignal) => {
     setLoading(true)
     try {
-      const res = await fetch("/api/mapping", { signal })
-      if (!res.ok) return
-      const data = (await res.json()) as { mappings: MappingsFile }
+      if (signal?.aborted) return
+      const data = await getMappings()
       setMappings(data.mappings ?? {})
     } catch (err) {
       if ((err as Error).name === "AbortError") return
@@ -39,28 +39,20 @@ export function useMappings(): UseMappingsResult {
 
   const saveMapping = useCallback(
     async (slug: string, media: AnilistMedia) => {
-      const res = await fetch("/api/mapping", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          slug,
-          anilistId: media.id,
-          title: media.title,
-          coverImage: media.coverImage,
-        }),
+      const mapping = await setMapping({
+        slug,
+        anilistId: media.id,
+        title: media.title,
+        coverImage: media.coverImage,
       })
-      if (!res.ok) throw new Error("Failed to save mapping")
-      const data = (await res.json()) as { mapping: FolderMapping }
-      setMappings((prev) => ({ ...prev, [slug]: data.mapping }))
-      return data.mapping
+      setMappings((prev) => ({ ...prev, [slug]: mapping }))
+      return mapping
     },
     []
   )
 
   const removeMapping = useCallback(async (slug: string) => {
-    await fetch(`/api/mapping?slug=${encodeURIComponent(slug)}`, {
-      method: "DELETE",
-    })
+    await deleteMapping(slug)
     setMappings((prev) => {
       const next = { ...prev }
       delete next[slug]

@@ -147,26 +147,6 @@ const SAVE_PROGRESS_MUTATION = `
 
 const PREFERRED_TV_FORMATS = new Set(["TV", "TV_SHORT", "ONA"])
 
-const MAX_RATE_LIMIT_RETRIES = 2
-
-function sleep(ms: number, signal?: AbortSignal): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException("Aborted", "AbortError"))
-      return
-    }
-    const timer = setTimeout(resolve, ms)
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer)
-        reject(new DOMException("Aborted", "AbortError"))
-      },
-      { once: true }
-    )
-  })
-}
-
 /** Low-level GraphQL call through the local proxy (forwards token if present). */
 async function requestAnilist<T>({
   query,
@@ -174,45 +154,23 @@ async function requestAnilist<T>({
   signal,
   token,
 }: AnilistGraphqlRequest): Promise<T> {
-  const headers: Record<string, string> = { "content-type": "application/json" }
-  if (token) headers["x-anilist-token"] = token
-
-  for (let attempt = 0; ; attempt++) {
-    const response = await fetch("/api/anilist", {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ query, variables }),
-      signal,
-    })
-
-    // Respect AniList's rate limit: wait Retry-After and retry a couple of times.
-    if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
-      const retryAfter = Number(response.headers.get("retry-after"))
-      const waitMs = Math.min(
-        (Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : 5) * 1000,
-        30000
-      )
-      await sleep(waitMs, signal)
-      continue
-    }
-
-    if (!response.ok && response.status !== 200) {
-      throw new Error(`AniList request failed with status ${response.status}`)
-    }
-
-    const payload = (await response.json()) as {
-      data?: T
-      errors?: Array<{ message?: string }> | null
-    }
-
-    if (payload.errors?.length) {
-      throw new Error(
-        payload.errors[0]?.message ?? "AniList returned an error response."
-      )
-    }
-
-    return payload.data as T
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError")
+  const payload = (await anilistGraphql({
+    query,
+    variables,
+    token,
+  })) as {
+    data?: T
+    errors?: Array<{ message?: string }> | null
   }
+
+  if (payload.errors?.length) {
+    throw new Error(
+      payload.errors[0]?.message ?? "AniList returned an error response."
+    )
+  }
+
+  return payload.data as T
 }
 
 // Short-lived in-memory cache for read queries so navigating between pages
@@ -717,3 +675,4 @@ function normalizeMediaListEntry(
     status: entry.status ?? null,
   }
 }
+import { anilistGraphql } from "@/lib/backend"

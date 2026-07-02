@@ -1,6 +1,6 @@
 "use client"
 
-import Image from "next/image"
+import { AppImage as Image } from "@/components/app/app-image"
 import { useCallback, useEffect, useState } from "react"
 
 import {

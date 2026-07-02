@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 
-import type { WatchedFile } from "@/lib/types"
+import { getWatchedAll, setWatched } from "@/lib/backend"
 
 type WatchedMap = Record<string, number[]>
 
@@ -31,9 +31,8 @@ export function useWatched(): UseWatchedResult {
     const controller = new AbortController()
     ;(async () => {
       try {
-        const res = await fetch("/api/watched", { signal: controller.signal })
-        if (!res.ok) return
-        const data = (await res.json()) as { watched: WatchedFile }
+        if (controller.signal.aborted) return
+        const data = await getWatchedAll()
         const map: WatchedMap = {}
         for (const [slug, entry] of Object.entries(data.watched ?? {})) {
           map[slug] = entry.watched
@@ -53,15 +52,9 @@ export function useWatched(): UseWatchedResult {
       const k = key(slug, episode)
       setPending((prev) => new Set(prev).add(k))
       try {
-        const res = await fetch("/api/watched", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ slug, episode, watched }),
-        })
-        if (!res.ok) throw new Error("Failed to update watched state")
-        const data = (await res.json()) as { watched: number[] }
-        setWatchedMap((prev) => ({ ...prev, [slug]: data.watched }))
-        return data.watched
+        const updated = await setWatched({ slug, episode, watched })
+        setWatchedMap((prev) => ({ ...prev, [slug]: updated }))
+        return updated
       } finally {
         setPending((prev) => {
           const next = new Set(prev)

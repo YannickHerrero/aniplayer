@@ -1,5 +1,5 @@
-import Image from "next/image"
-import Link from "next/link"
+import { AppImage as Image } from "@/components/app/app-image"
+import Link from "@/components/app/link"
 
 import { gradientFor } from "@/lib/gradient"
 import type { AnimeFolder } from "@/lib/types"

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import type { MoveResult, OrganizeProposal } from "@/lib/organizer"
+import { getOrganize, moveOrganize, type MoveResult } from "@/lib/backend"
 
 type OrganizeButtonProps = {
   scanned: number
@@ -40,9 +40,7 @@ export function OrganizeButton({ scanned, total }: OrganizeButtonProps) {
     setError(null)
     setResults([])
     try {
-      const res = await fetch("/api/organize")
-      if (!res.ok) throw new Error(`Scan failed (${res.status})`)
-      const data = (await res.json()) as { proposals: OrganizeProposal[] }
+      const data = await getOrganize()
       setRows(
         data.proposals.map((p) => ({
           fileName: p.fileName,
@@ -69,18 +67,13 @@ export function OrganizeButton({ scanned, total }: OrganizeButtonProps) {
   const move = async () => {
     setPhase("moving")
     try {
-      const res = await fetch("/api/organize", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          moves: selected.map((r) => ({
-            fileName: r.fileName,
-            targetFolder: r.targetFolder.trim(),
-          })),
-        }),
-      })
-      const data = (await res.json()) as { results: MoveResult[] }
-      setResults(data.results ?? [])
+      const results = await moveOrganize(
+        selected.map((r) => ({
+          fileName: r.fileName,
+          targetFolder: r.targetFolder.trim(),
+        }))
+      )
+      setResults(results)
       setPhase("done")
     } catch {
       setError("Move failed")

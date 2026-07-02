@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 
+import { getDownload, startDownload } from "@/lib/backend"
 import type { DownloadProgress } from "@/lib/episode-model"
 import type { DownloadEntry } from "@/lib/types"
 
@@ -54,13 +55,8 @@ export function useDownloads({
       await Promise.all(
         episodes.map(async (ep) => {
           try {
-            const res = await fetch(
-              `/api/download?slug=${encodeURIComponent(slug)}&episode=${ep}`
-            )
-            if (!res.ok) return
-            const data = (await res.json()) as { download: DownloadEntry | null }
-            if (cancelled || !data.download) return
-            const dl = data.download
+            const dl = await getDownload({ slug, episode: ep })
+            if (cancelled || !dl) return
             setDownloads((prev) => ({ ...prev, [ep]: dl }))
             if (dl.status === "completed") {
               cb.current.onComplete?.(ep)
@@ -95,25 +91,14 @@ export function useDownloads({
       })
       setStarting((s) => new Set(s).add(episode))
       try {
-        const res = await fetch("/api/download", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-realdebrid-key": rdKey,
-          },
-          body: JSON.stringify({ slug, episode }),
+        const download = await startDownload({
+          slug,
+          episode,
+          realDebridKey: rdKey,
         })
-        const data = (await res.json().catch(() => ({}))) as {
-          download?: DownloadEntry
-          error?: string
-        }
-        if (!res.ok || !data.download) {
-          cb.current.onError?.(data.error ?? "Failed to start download", episode)
-          return
-        }
-        setDownloads((prev) => ({ ...prev, [episode]: data.download! }))
-      } catch {
-        cb.current.onError?.("Failed to start download", episode)
+        setDownloads((prev) => ({ ...prev, [episode]: download }))
+      } catch (err) {
+        cb.current.onError?.((err as Error).message ?? "Failed to start download", episode)
       } finally {
         setStarting((s) => {
           const n = new Set(s)

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+import { getLibraryFolder } from "@/lib/backend"
 import type { AnimeFolder } from "@/lib/types"
 
 type UseLibraryFolderResult = {
@@ -19,17 +20,14 @@ export function useLibraryFolder(slug: string): UseLibraryFolderResult {
   const load = useCallback(
     async (signal?: AbortSignal) => {
       try {
-        const res = await fetch(`/api/library/${encodeURIComponent(slug)}`, {
-          signal,
-        })
-        if (res.status === 404) {
+        if (signal?.aborted) return
+        const folder = await getLibraryFolder(slug)
+        if (!folder) {
           setFolder(null)
           setError("Anime not found")
           return
         }
-        if (!res.ok) throw new Error(`Failed to load (${res.status})`)
-        const data = (await res.json()) as { folder: AnimeFolder }
-        setFolder(data.folder)
+        setFolder(folder)
         setError(null)
       } catch (err) {
         if ((err as Error).name === "AbortError") return

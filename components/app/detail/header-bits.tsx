@@ -1,6 +1,6 @@
 "use client"
 
-import Link from "next/link"
+import Link from "@/components/app/link"
 import { ArrowLeft, Play } from "lucide-react"
 
 import { MatchPicker } from "@/components/app/match-picker"

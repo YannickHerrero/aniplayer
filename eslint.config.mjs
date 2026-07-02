@@ -1,32 +1,38 @@
-import { defineConfig, globalIgnores } from "eslint/config"
-import nextVitals from "eslint-config-next/core-web-vitals"
-import nextTs from "eslint-config-next/typescript"
+import js from "@eslint/js"
+import reactHooks from "eslint-plugin-react-hooks"
+import globals from "globals"
+import tseslint from "typescript-eslint"
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
+export default tseslint.config(
   {
+    ignores: [
+      "dist/**",
+      ".next/**",
+      "out/**",
+      "build/**",
+      "src-tauri/resources/**",
+      "src-tauri/binaries/**",
+      "src-tauri/target/**",
+    ],
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  {
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      globals: globals.browser,
+    },
+    plugins: {
+      "react-hooks": reactHooks,
+    },
     rules: {
-      // We use idiomatic fetch-on-mount effects (set loading → await → set
-      // data) and fragment parsing on mount; this rule flags the synchronous
-      // setState that starts those, which is intentional here.
-      "react-hooks/set-state-in-effect": "off",
-      // Allow intentionally-unused args/vars prefixed with `_`.
+      ...reactHooks.configs.recommended.rules,
       "@typescript-eslint/no-unused-vars": [
         "warn",
         { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
+      "react-hooks/set-state-in-effect": "off",
     },
-  },
-  // Override default ignores of eslint-config-next.
-  globalIgnores([
-    ".next/**",
-    "out/**",
-    "build/**",
-    "src-tauri/resources/**",
-    "src-tauri/binaries/**",
-    "next-env.d.ts",
-  ]),
-])
-
-export default eslintConfig
+  }
+)

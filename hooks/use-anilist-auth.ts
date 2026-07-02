@@ -8,6 +8,7 @@ import {
   clearToken,
   getStoredToken,
 } from "@/lib/anilist-auth"
+import { getConfig } from "@/lib/backend"
 
 type UseAnilistAuthResult = {
   token: string | null
@@ -39,12 +40,8 @@ export function useAnilistAuth(): UseAnilistAuthResult {
     const controller = new AbortController()
     ;(async () => {
       try {
-        const res = await fetch("/api/config", { signal: controller.signal })
-        if (!res.ok) return
-        const data = (await res.json()) as {
-          anilistClientId?: string | null
-          anilistRedirectUri?: string | null
-        }
+        if (controller.signal.aborted) return
+        const data = await getConfig()
         setAuthConfig({
           clientId: data.anilistClientId ?? null,
           redirectUri: data.anilistRedirectUri ?? null,

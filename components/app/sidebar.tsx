@@ -1,7 +1,7 @@
 "use client"
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
+import Link from "@/components/app/link"
+import { usePathname } from "@/lib/navigation"
 import { Heart, Home, ListVideo, PlayCircle, Settings } from "lucide-react"
 
 import { AnilistConnectButton } from "@/components/app/anilist-connect-button"

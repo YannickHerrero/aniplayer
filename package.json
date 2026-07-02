@@ -12,6 +12,7 @@
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
     "desktop:stage": "node scripts/desktop-stage.mjs",
+    "desktop:sidecar": "node scripts/desktop-sidecar.mjs",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit"

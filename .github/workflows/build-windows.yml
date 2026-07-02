@@ -1,0 +1,61 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master, feat/*]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install frontend
+        run: pnpm install
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Download mpv Windows dev package
+        shell: pwsh
+        run: |
+          $url = "https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20250316/mpv-dev-x86_64-20250316-git-ae8f28e.7z"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\mpv.7z"
+          7z x "$env:TEMP\mpv.7z" -o"$env:TEMP\mpv" -y
+
+      - name: Install mpv library for Rust
+        shell: pwsh
+        run: |
+          $src = "$env:TEMP\mpv"
+          $out = "C:\mpv"
+          New-Item -ItemType Directory -Force -Path "$out\lib"
+          Copy-Item "$src\include" -Destination "$out\include" -Recurse -Force
+          Copy-Item "$src\lib\*" -Destination "$out\lib" -Recurse -Force
+          echo "MPV_INCLUDE_DIR=$out\include" >> $env:GITHUB_ENV
+          echo "MPV_LIB_DIR=$out\lib" >> $env:GITHUB_ENV
+          echo "LIB=$env:LIB;$out\lib" >> $env:GITHUB_ENV
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Aniplayer-Windows
+          path: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: warn

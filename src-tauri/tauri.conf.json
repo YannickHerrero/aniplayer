@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "dev.yannick.aniplayer",
   "build": {
-    "frontendDist": "../out",
+    "frontendDist": "resources/next-server",
     "devUrl": "http://127.0.0.1:39847",
     "beforeDevCommand": "pnpm dev:desktop",
     "beforeBuildCommand": "pnpm desktop:prepare"
@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "Aniplayer",
+        "url": "http://127.0.0.1:39847",
         "width": 1280,
         "height": 820,
         "resizable": true,

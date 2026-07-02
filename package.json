@@ -11,6 +11,7 @@
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build",
+    "desktop:prepare": "node scripts/desktop-prepare.mjs",
     "desktop:stage": "node scripts/desktop-stage.mjs",
     "desktop:sidecar": "node scripts/desktop-sidecar.mjs",
     "lint": "eslint",

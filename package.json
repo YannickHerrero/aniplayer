@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack -p 39847",
+    "dev:desktop": "next dev --turbopack -H 127.0.0.1 -p 39847",
     "build": "next build",
     "start": "next start -p 39847",
     "tauri": "tauri",

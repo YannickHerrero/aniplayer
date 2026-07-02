@@ -126,3 +126,41 @@ pnpm start       # run the production build on :39847
 pnpm typecheck   # tsc --noEmit
 pnpm lint        # eslint
 ```
+
+## Desktop app (Tauri)
+
+This repo can also run as a Tauri desktop app. The desktop shell still uses the
+Next.js server because the app depends on local API routes for filesystem
+access, downloads, VLC launching, and OAuth token exchange.
+
+Development:
+
+```bash
+pnpm desktop:dev
+```
+
+Production bundle preparation:
+
+```bash
+pnpm desktop:prepare
+pnpm desktop:build
+```
+
+`desktop:prepare` builds the Next standalone server, stages it under
+`src-tauri/resources/next-server`, and copies the local Node runtime into
+Tauri's sidecar binary layout. The staged server and Node binary are generated
+artifacts and are not committed.
+
+Linux Tauri builds require system WebKit/DBus tooling such as `pkg-config` and
+`libdbus-1-dev` in addition to the usual Rust toolchain.
+
+Desktop runtime settings live in Settings → Desktop and are stored in
+`<configDir>/config.json`. `ANIPLAYER_CONFIG_DIR` can override that location;
+otherwise it follows `ANIPLAYER_DATA_DIR` and finally defaults to `./.data`.
+
+AniList OAuth still uses the localhost redirect. Register this redirect URI in
+AniList for desktop builds:
+
+```text
+http://localhost:39847/auth/callback
+```

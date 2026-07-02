@@ -3,6 +3,8 @@ import fs from "node:fs/promises"
 import { homedir } from "node:os"
 import path from "node:path"
 
+import { firstConfigured, readRuntimeConfigSync } from "@/lib/app-config"
+
 const DEFAULT_DATA_DIR = "./.data"
 
 function expandTilde(input: string): string {
@@ -13,7 +15,12 @@ function expandTilde(input: string): string {
 
 /** Absolute path to the data dir (from ANIPLAYER_DATA_DIR). */
 export function getDataDir(): string {
-  const configured = process.env.ANIPLAYER_DATA_DIR?.trim() || DEFAULT_DATA_DIR
+  const config = readRuntimeConfigSync()
+  const configured = firstConfigured(
+    process.env.ANIPLAYER_DATA_DIR,
+    config.dataDir,
+    DEFAULT_DATA_DIR
+  ) ?? DEFAULT_DATA_DIR
   return path.resolve(expandTilde(configured))
 }
 

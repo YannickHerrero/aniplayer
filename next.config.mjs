@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: "standalone",
+  outputFileTracingExcludes: {
+    "/*": ["./src-tauri/resources/**/*", "./src-tauri/binaries/**/*"],
+  },
   images: {
     remotePatterns: [
       {

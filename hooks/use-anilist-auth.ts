@@ -22,6 +22,10 @@ type UseAnilistAuthResult = {
 export function useAnilistAuth(): UseAnilistAuthResult {
   const [token, setToken] = useState<string | null>(null)
   const [viewer, setViewer] = useState<AnilistViewer | null>(null)
+  const [authConfig, setAuthConfig] = useState<{
+    clientId: string | null
+    redirectUri: string | null
+  }>({ clientId: null, redirectUri: null })
 
   // Load the stored token on mount and keep it in sync across tabs.
   useEffect(() => {
@@ -29,6 +33,27 @@ export function useAnilistAuth(): UseAnilistAuthResult {
     const onStorage = () => setToken(getStoredToken()?.accessToken ?? null)
     window.addEventListener("storage", onStorage)
     return () => window.removeEventListener("storage", onStorage)
+  }, [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    ;(async () => {
+      try {
+        const res = await fetch("/api/config", { signal: controller.signal })
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          anilistClientId?: string | null
+          anilistRedirectUri?: string | null
+        }
+        setAuthConfig({
+          clientId: data.anilistClientId ?? null,
+          redirectUri: data.anilistRedirectUri ?? null,
+        })
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return
+      }
+    })()
+    return () => controller.abort()
   }, [])
 
   // Resolve the viewer whenever the token changes.
@@ -45,9 +70,9 @@ export function useAnilistAuth(): UseAnilistAuthResult {
   }, [token])
 
   const connect = useCallback(() => {
-    const url = buildAuthorizeUrl()
+    const url = buildAuthorizeUrl(authConfig.clientId, authConfig.redirectUri)
     if (url) window.location.href = url
-  }, [])
+  }, [authConfig.clientId, authConfig.redirectUri])
 
   const disconnect = useCallback(() => {
     clearToken()
@@ -58,7 +83,7 @@ export function useAnilistAuth(): UseAnilistAuthResult {
   return {
     token,
     connected: Boolean(token),
-    configured: Boolean(process.env.NEXT_PUBLIC_ANILIST_CLIENT_ID),
+    configured: Boolean(authConfig.clientId),
     viewer,
     connect,
     disconnect,

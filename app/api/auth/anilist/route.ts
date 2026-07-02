@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 
+import { firstConfigured, readRuntimeConfig } from "@/lib/app-config"
+
 const TOKEN_URL = "https://anilist.co/api/v2/oauth/token"
 
 /**
@@ -19,9 +21,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "code is required" }, { status: 400 })
   }
 
-  const clientId = process.env.NEXT_PUBLIC_ANILIST_CLIENT_ID
-  const clientSecret = process.env.ANILIST_CLIENT_SECRET
-  const redirectUri = process.env.NEXT_PUBLIC_ANILIST_REDIRECT_URI
+  const config = await readRuntimeConfig()
+  const clientId = firstConfigured(
+    process.env.NEXT_PUBLIC_ANILIST_CLIENT_ID,
+    config.anilistClientId
+  )
+  const clientSecret = firstConfigured(
+    process.env.ANILIST_CLIENT_SECRET,
+    config.anilistClientSecret
+  )
+  const redirectUri = firstConfigured(
+    process.env.NEXT_PUBLIC_ANILIST_REDIRECT_URI,
+    config.anilistRedirectUri
+  )
 
   if (!clientId || !clientSecret || !redirectUri) {
     return NextResponse.json(

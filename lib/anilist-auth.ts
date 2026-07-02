@@ -39,9 +39,10 @@ export function clearToken(): void {
  * AniList no longer supports implicit grant, so we use response_type=code and
  * exchange the returned code for a token server-side (see /api/auth/anilist).
  */
-export function buildAuthorizeUrl(): string | null {
-  const clientId = process.env.NEXT_PUBLIC_ANILIST_CLIENT_ID
-  const redirectUri = process.env.NEXT_PUBLIC_ANILIST_REDIRECT_URI
+export function buildAuthorizeUrl(
+  clientId: string | null,
+  redirectUri: string | null
+): string | null {
   if (!clientId || !redirectUri) return null
 
   const params = new URLSearchParams({

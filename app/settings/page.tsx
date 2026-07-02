@@ -2,13 +2,14 @@
 
 import Link from "next/link"
 import { ArrowLeft } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useDetailLayout } from "@/hooks/use-detail-layout"
 import { useRealDebrid } from "@/hooks/use-realdebrid"
 import { DETAIL_LAYOUTS } from "@/lib/detail-layout"
+import type { RuntimeConfig } from "@/lib/app-config"
 import { type RealDebridUser, validateRealDebridKey } from "@/lib/realdebrid"
 import { cn } from "@/lib/utils"
 
@@ -21,6 +22,30 @@ export default function SettingsPage() {
   )
   const [user, setUser] = useState<RealDebridUser | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [desktopConfig, setDesktopConfig] = useState<RuntimeConfig>({})
+  const [secretConfigured, setSecretConfigured] = useState(false)
+  const [configStatus, setConfigStatus] = useState<
+    "idle" | "saving" | "saved" | "error"
+  >("idle")
+
+  useEffect(() => {
+    const controller = new AbortController()
+    ;(async () => {
+      try {
+        const res = await fetch("/api/config", { signal: controller.signal })
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          config?: RuntimeConfig
+          anilistClientSecretConfigured?: boolean
+        }
+        setDesktopConfig(data.config ?? {})
+        setSecretConfigured(Boolean(data.anilistClientSecretConfigured))
+      } catch (err) {
+        if ((err as Error).name === "AbortError") return
+      }
+    })()
+    return () => controller.abort()
+  }, [])
 
   const save = async () => {
     const candidate = input.trim()
@@ -45,6 +70,40 @@ export default function SettingsPage() {
     setStatus("idle")
   }
 
+  const saveDesktopConfig = async () => {
+    setConfigStatus("saving")
+    try {
+      const patch: Partial<Record<keyof RuntimeConfig, string | null>> = {
+        animeLibraryPath: desktopConfig.animeLibraryPath?.trim() || null,
+        downloadsPath: desktopConfig.downloadsPath?.trim() || null,
+        dataDir: desktopConfig.dataDir?.trim() || null,
+        vlcPath: desktopConfig.vlcPath?.trim() || null,
+        anilistClientId: desktopConfig.anilistClientId?.trim() || null,
+        anilistRedirectUri: desktopConfig.anilistRedirectUri?.trim() || null,
+      }
+      if (desktopConfig.anilistClientSecret?.trim()) {
+        patch.anilistClientSecret = desktopConfig.anilistClientSecret.trim()
+      }
+      const res = await fetch("/api/config", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(patch),
+      })
+      if (!res.ok) throw new Error("Failed to save config")
+      const data = (await res.json()) as { config?: RuntimeConfig }
+      setDesktopConfig(data.config ?? {})
+      setSecretConfigured(Boolean(patch.anilistClientSecret) || secretConfigured)
+      setConfigStatus("saved")
+    } catch {
+      setConfigStatus("error")
+    }
+  }
+
+  const updateDesktopConfig = (key: keyof RuntimeConfig, value: string) => {
+    setDesktopConfig((prev) => ({ ...prev, [key]: value }))
+    setConfigStatus("idle")
+  }
+
   return (
     <main className="mx-auto max-w-2xl px-6 py-10">
       <Link
@@ -57,6 +116,70 @@ export default function SettingsPage() {
       <h1 className="mt-6 font-display text-2xl font-bold">Settings</h1>
 
       <section className="mt-8 rounded-2xl border border-[var(--border-strong)] bg-panel p-5">
+        <h2 className="font-display text-base font-semibold">Desktop</h2>
+        <p className="mt-1 text-sm text-text-secondary">
+          Runtime paths and OAuth settings used by the local desktop server.
+        </p>
+
+        <div className="mt-4 grid gap-3">
+          <ConfigInput
+            label="Library path"
+            value={desktopConfig.animeLibraryPath ?? ""}
+            placeholder="~/Downloads/anime"
+            onChange={(value) => updateDesktopConfig("animeLibraryPath", value)}
+          />
+          <ConfigInput
+            label="Downloads path"
+            value={desktopConfig.downloadsPath ?? ""}
+            placeholder="Defaults to the library parent folder"
+            onChange={(value) => updateDesktopConfig("downloadsPath", value)}
+          />
+          <ConfigInput
+            label="Data dir"
+            value={desktopConfig.dataDir ?? ""}
+            placeholder="./.data"
+            onChange={(value) => updateDesktopConfig("dataDir", value)}
+          />
+          <ConfigInput
+            label="VLC path"
+            value={desktopConfig.vlcPath ?? ""}
+            placeholder="/Applications/VLC.app/Contents/MacOS/VLC"
+            onChange={(value) => updateDesktopConfig("vlcPath", value)}
+          />
+          <ConfigInput
+            label="AniList client ID"
+            value={desktopConfig.anilistClientId ?? ""}
+            onChange={(value) => updateDesktopConfig("anilistClientId", value)}
+          />
+          <ConfigInput
+            label="AniList redirect URI"
+            value={desktopConfig.anilistRedirectUri ?? ""}
+            placeholder="http://localhost:39847/auth/callback"
+            onChange={(value) => updateDesktopConfig("anilistRedirectUri", value)}
+          />
+          <ConfigInput
+            label="AniList client secret"
+            type="password"
+            value={desktopConfig.anilistClientSecret ?? ""}
+            placeholder={secretConfigured ? "Already configured" : "Client secret"}
+            onChange={(value) => updateDesktopConfig("anilistClientSecret", value)}
+          />
+        </div>
+
+        <div className="mt-4 flex items-center gap-3">
+          <Button onClick={saveDesktopConfig} disabled={configStatus === "saving"}>
+            {configStatus === "saving" ? "Saving…" : "Save desktop config"}
+          </Button>
+          {configStatus === "saved" && (
+            <p className="text-xs text-green">Saved. Restart if paths changed.</p>
+          )}
+          {configStatus === "error" && (
+            <p className="text-xs text-red-400">Failed to save config.</p>
+          )}
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-2xl border border-[var(--border-strong)] bg-panel p-5">
         <div className="flex items-center gap-2.5">
           <h2 className="font-display text-base font-semibold">Real-Debrid</h2>
           {configured && (
@@ -156,5 +279,31 @@ export default function SettingsPage() {
         </div>
       </section>
     </main>
+  )
+}
+
+function ConfigInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  placeholder?: string
+  type?: string
+}) {
+  return (
+    <label className="grid gap-1.5">
+      <span className="text-xs font-medium text-text-secondary">{label}</span>
+      <Input
+        type={type}
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </label>
   )
 }

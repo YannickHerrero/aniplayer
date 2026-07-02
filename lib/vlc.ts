@@ -3,14 +3,21 @@ import { access, realpath, stat } from "node:fs/promises"
 import path from "node:path"
 
 import { isVideoFile } from "@/lib/episode-parser"
+import { firstConfigured, readRuntimeConfigSync } from "@/lib/app-config"
 import {
   getLibraryRoot,
   isSafeSegment,
   slugToFolderName,
 } from "@/lib/library-paths"
 
-const VLC_BINARY =
-  process.env.VLC_PATH || "/Applications/VLC.app/Contents/MacOS/VLC"
+function getVlcBinary(): string {
+  const config = readRuntimeConfigSync()
+  return firstConfigured(
+    process.env.VLC_PATH,
+    config.vlcPath,
+    "/Applications/VLC.app/Contents/MacOS/VLC"
+  ) ?? "/Applications/VLC.app/Contents/MacOS/VLC"
+}
 
 export class PlaybackError extends Error {
   constructor(
@@ -66,10 +73,11 @@ export async function playInVlc(slug: string, fileName: string): Promise<void> {
 
 async function launch(absolutePath: string): Promise<void> {
   // Prefer the VLC binary directly; fall back to `open -a VLC` on macOS.
-  let command = VLC_BINARY
+  const vlcBinary = getVlcBinary()
+  let command = vlcBinary
   let args = [absolutePath]
   try {
-    await access(VLC_BINARY)
+    await access(vlcBinary)
   } catch {
     command = "open"
     args = ["-a", "VLC", absolutePath]

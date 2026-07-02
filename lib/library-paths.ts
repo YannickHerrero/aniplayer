@@ -1,6 +1,8 @@
 import { homedir } from "node:os"
 import path from "node:path"
 
+import { firstConfigured, readRuntimeConfigSync } from "@/lib/app-config"
+
 const DEFAULT_LIBRARY = "~/Downloads/anime"
 
 /** Expand a leading `~` to the user's home directory. */
@@ -12,7 +14,12 @@ function expandTilde(input: string): string {
 
 /** Absolute path to the anime library root (from ANIME_LIBRARY_PATH). */
 export function getLibraryRoot(): string {
-  const configured = process.env.ANIME_LIBRARY_PATH?.trim() || DEFAULT_LIBRARY
+  const config = readRuntimeConfigSync()
+  const configured = firstConfigured(
+    process.env.ANIME_LIBRARY_PATH,
+    config.animeLibraryPath,
+    DEFAULT_LIBRARY
+  ) ?? DEFAULT_LIBRARY
   return path.resolve(expandTilde(configured))
 }
 
@@ -22,7 +29,11 @@ export function getLibraryRoot(): string {
  * `~/Downloads`); overridable with DOWNLOADS_PATH.
  */
 export function getDownloadsRoot(): string {
-  const configured = process.env.DOWNLOADS_PATH?.trim()
+  const config = readRuntimeConfigSync()
+  const configured = firstConfigured(
+    process.env.DOWNLOADS_PATH,
+    config.downloadsPath
+  )
   if (configured) return path.resolve(expandTilde(configured))
   return path.dirname(getLibraryRoot())
 }

@@ -29,17 +29,22 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Install mpv via vcpkg
+      - name: Download mpv Windows dev package
         shell: pwsh
         run: |
-          vcpkg install mpv:x64-windows
-          vcpkg integrate install
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/shinchiro/mpv-winbuild-cmake/releases/latest"
+          $asset = $release.assets | Where-Object { $_.name -match "mpv-dev-x86_64.*\.7z" } | Select-Object -First 1
+          $url = $asset.browser_download_url
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\mpv.7z"
+          7z x "$env:TEMP\mpv.7z" -o"C:\mpv" -y
+          echo "MPV_INCLUDE_DIR=C:\mpv\include" >> $env:GITHUB_ENV
+          echo "MPV_LIB_DIR=C:\mpv\lib" >> $env:GITHUB_ENV
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VCPKG_ROOT: C:\vcpkg
 
       - name: Upload installer
         uses: actions/upload-artifact@v4

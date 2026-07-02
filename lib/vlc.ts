@@ -12,11 +12,12 @@ import {
 
 function getVlcBinary(): string {
   const config = readRuntimeConfigSync()
-  return firstConfigured(
-    process.env.VLC_PATH,
-    config.vlcPath,
-    "/Applications/VLC.app/Contents/MacOS/VLC"
-  ) ?? "/Applications/VLC.app/Contents/MacOS/VLC"
+  const configured = firstConfigured(process.env.VLC_PATH, config.vlcPath)
+  if (configured) return configured
+  if (process.platform === "darwin") {
+    return "/Applications/VLC.app/Contents/MacOS/VLC"
+  }
+  return process.platform === "win32" ? "vlc.exe" : "vlc"
 }
 
 export class PlaybackError extends Error {
@@ -72,13 +73,16 @@ export async function playInVlc(slug: string, fileName: string): Promise<void> {
 }
 
 async function launch(absolutePath: string): Promise<void> {
-  // Prefer the VLC binary directly; fall back to `open -a VLC` on macOS.
+  // Prefer the configured/default VLC binary; fall back to `open -a VLC` on macOS.
   const vlcBinary = getVlcBinary()
   let command = vlcBinary
   let args = [absolutePath]
   try {
-    await access(vlcBinary)
+    if (path.isAbsolute(vlcBinary) || vlcBinary.includes(path.sep)) {
+      await access(vlcBinary)
+    }
   } catch {
+    if (process.platform !== "darwin") throw new Error("VLC binary not found")
     command = "open"
     args = ["-a", "VLC", absolutePath]
   }
